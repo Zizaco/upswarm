@@ -16,6 +16,11 @@ abstract class Service {
     protected $loop;
     protected $eventEmitter;
 
+    public function getLoop()
+    {
+        return $this->loop;
+    }
+
     public function run($loop = null, $commandBus = null)
     {
         $this->id = uniqid();

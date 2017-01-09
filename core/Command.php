@@ -32,6 +32,10 @@ class Command
                 $key = "param$key";
             }
 
+            if (is_object($value)) {
+                $value = clone $value;
+            }
+
             $this->params->$key = $value;
         }
     }

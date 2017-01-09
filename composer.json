@@ -2,7 +2,9 @@
     "require": {
         "react/react": "^0.4.2",
         "league/climate": "^3.2",
-        "jeremeamia/superclosure": "^2.3"
+        "jeremeamia/superclosure": "^2.3",
+        "symfony/var-dumper": "^3.2",
+        "nikic/fast-route": "^1.1"
     },
     "autoload": {
         "psr-4": {

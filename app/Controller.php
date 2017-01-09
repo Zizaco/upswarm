@@ -15,7 +15,14 @@ class Controller extends Service
     protected function receiveCommand(Command $command)
     {
         if ('request' == $command->command) {
-            $command->respond(new Command('response', "Hello async, multi-threaded world!"));
+            $request = $command->params->param0;
+            dump($request);
+            $command->respond(new Command('response', $this->respond($request)));
         }
+    }
+
+    public function respond($request)
+    {
+        return "OMG!";
     }
 }
