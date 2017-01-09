@@ -1,0 +1,13 @@
+{
+    "require": {
+        "react/react": "^0.4.2",
+        "league/climate": "^3.2",
+        "jeremeamia/superclosure": "^2.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Core\\": "core/",
+            "App\\": "app/"
+        }
+    }
+}
