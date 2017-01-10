@@ -10,10 +10,14 @@ use React\Socket\Server;
 use React\Stream\Stream;
 
 /**
- * Upswarm supervisor server.
+ * Upswarm supervisor orchestrate services and handle message exchanging
+ * between then.
  */
 class Supervisor
 {
+    /**
+     * How to name an unknow service in $connections array.
+     */
     const UNKNOW_SERVICE = 'unknow';
 
     /**

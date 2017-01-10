@@ -10,93 +10,205 @@ use React\EventLoop\LoopInterface;
 use React\SocketClient\Connector;
 use React\Stream\Stream;
 
-abstract class Service {
+/**
+ * Upswarm service baseclass. Services that will be orchestrated by Upswarm
+ * Supervisor should extend to this class.
+ */
+abstract class Service
+{
+
+    /**
+     * Unique identifier
+     * @var string
+     */
     protected $id;
-    protected $commandBus;
+
+    /**
+     * Socket to comunicate with the Supervisor
+     * @var Stream
+     */
+    protected $supervisorConnection;
+
+    /**
+     * ReactPHP loop.
+     * @var LoopInterface
+     */
     protected $loop;
+
+    /**
+     * Service event emitter
+     * @var EventEmitter
+     */
     protected $eventEmitter;
 
-    public function getLoop()
+    /**
+     * Retrieves the ReactPHP event loop
+     * @return LoopInterface
+     */
+    public function getLoop(): LoopInterface
     {
         return $this->loop;
     }
 
-    public function run($loop = null, $commandBus = null)
+    /**
+     * Runs the service
+     *
+     * @param integer $port Supervisor port.
+     *
+     * @return void
+     */
+    public function run(int $port = 8300)
     {
-        $this->id = uniqid();
+        $this->id           = uniqid();
         $this->eventEmitter = new EventEmitter;
-        $this->eventEmitter->on('respond', function (Command$command) {
-            $this->sendCommand($command);
-        });
+        $this->loop         = Factory::create();
 
-        if (! $this->loop = $loop) {
-            $this->loop = Factory::create();
-        }
-
-        if (! $this->commandBus = $commandBus) {
-            $dns    = new DnsResolver();
-            $socket = new Connector($this->loop, $dns->createCached('8.8.8.8', $this->loop));
-            $socket->create('127.0.0.1', 4000)
-                ->then(function (Stream $stream) {
-                    $this->commandBus = $stream;
-                    $this->sendCommand(new Command('identify', [static::class, $this->id]));
-
-                    $stream->on('data', function ($data) {
-                        $command = unserialize($data);
-                        $this->incomingCommand($command);
-                    });
-
-                    $stream->on('end', function () {
-                        $this->loop->stop();
-                    });
-
-                    $this->serve($this->loop, $this->commandBus);
-                });
-
-            $this->loop->run();
-            return;
-        }
-
-        $this->serve($this->loop, $this->commandBus);
-        return;
+        $this->registerMessageResponseCallback();
+        $this->connectWithSupervisor($port);
+        $this->loop->run();
     }
 
-    public function sendCommand(Command $command)
+    /**
+     * Stabilish connection with the supervisor.
+     *
+     * @param integer $port Supervisor port.
+     *
+     * @return void
+     */
+    private function connectWithSupervisor(int $port)
     {
-        $this->loop->nextTick(function () use ($command) {
-            if ($command->deferred) {
-                $command->sender = $this->id;
+        $dns    = new DnsResolver();
+        $socket = new Connector($this->loop, $dns->createCached('8.8.8.8', $this->loop));
 
-                $timeout = $this->loop->addTimer(3, function () use ($command) {
-                    $command->deferred->reject();
-                });
+        // Create connection
+        $socket->create('127.0.0.1', $port)->then(function (Stream $stream) {
+            // Stores supervisor connection
+            $this->supervisorConnection = $stream;
+            $this->sendIdentificationMessage();
 
-                $this->eventEmitter->on($command->id, function ($value) use ($command, $timeout) {
-                    $timeout->cancel();
-                    $command->deferred->resolve($value);
-                });
+            // Register callback for incoming Messages
+            $stream->on('data', function ($data) {
+                $message = unserialize($data);
+                $this->reactToIncomingMessage($message);
+            });
+
+            // Stops loop (and exit service) if connection ends
+            $stream->on('end', function () {
+                $this->loop->stop();
+            });
+
+            // Executes serve
+            $this->serve($this->loop);
+        });
+    }
+
+    /**
+     * Registers the callback that will be triggered whenever a Message::respond
+     * is called
+     *
+     * @return void
+     */
+    private function registerMessageResponseCallback()
+    {
+        $this->eventEmitter->on('respond', function (Message $message) {
+            $this->sendCommand($message);
+        });
+    }
+
+    /**
+     * Sends identification Message to Supervisor.
+     *
+     * @return void
+     */
+    private function sendIdentificationMessage()
+    {
+        $this->sendCommand(new Message('identify', [static::class, $this->id]));
+    }
+
+    /**
+     * Sends message to Supervisor or to another service. The main inter process
+     * comunication mechanism of Upswarm.
+     *
+     * @param  Message $message Message to be sent.
+     *
+     * @return Message
+     */
+    public function sendMessage(Message $message)
+    {
+        // On the next tick of the loop
+        $this->loop->nextTick(function () use ($message) {
+            // Register callback to fullfill promisse if Message has deferred.
+            if ($message->deferred) {
+                $this->registerDeferredCallback($message);
             }
 
-            $this->commandBus->write(serialize($command));
+            // Sends message to the supervisor.
+            $this->supervisorConnection->write(serialize($message));
         });
 
-        return $command;
+        return $message;
     }
 
-    protected function incomingCommand(Command $command)
+    /**
+     * Registers callbacks to Resolve or Reject the deferred of the message.
+     *
+     * @param  Message $message Message that expects a response.
+     *
+     * @return void
+     */
+    private function registerDeferredCallback(Message $message)
     {
-        if ($command->receipt) {
-            $this->eventEmitter->emit($command->id, [$command]);
-            $command->eventEmitter = $this->eventEmitter;
+        // Identify that this service should receive the response message.
+        $message->sender = $this->id;
+
+        // Add a timeout to reject the promisse of the message.
+        $timeout = $this->loop->addTimer(3, function () use ($message) {
+            $message->deferred->reject();
+        });
+
+        // Registers callback to resolve promisse if a response message is received.
+        $this->eventEmitter->on($message->id, function ($value) use ($message, $timeout) {
+            $timeout->cancel();
+            $message->deferred->resolve($value);
+        });
+    }
+
+    /**
+     * React to an incoming message.
+     *
+     * @param  Message $message Incoming message.
+     *
+     * @return void
+     */
+    private function reactToIncomingMessage(Message $message)
+    {
+        if ($message->receipt) {
+            $this->eventEmitter->emit($message->id, [$message]);
+            $message->eventEmitter = $this->eventEmitter;
         }
 
-        $this->receiveCommand($command);
+        $this->handleMessage($message, $this->loop);
     }
 
-    protected function receiveCommand(Command $command)
+    /**
+     * Handles the messages that are received by this service.
+     *
+     * @param  Message       $message Incoming message.
+     * @param  LoopInterface $loop    ReactPHP loop.
+     *
+     * @return void
+     */
+    public function handleMessage(Message $message, LoopInterface $loop)
     {
-
     }
 
-    abstract public function serve(LoopInterface $loop, Stream $commandBus);
+    /**
+     * Provide the given service. This is the initialization point of the
+     * service, the initialization point of the service.
+     *
+     * @param  LoopInterface $loop ReactPHP loop.
+     *
+     * @return void
+     */
+    abstract public function serve(LoopInterface $loop);
 }
