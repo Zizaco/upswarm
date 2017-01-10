@@ -2,157 +2,279 @@
 
 namespace Core;
 
+use Core\Message;
 use Evenement\EventEmitterInterface;
 use React\ChildProcess\Process;
 use React\EventLoop\Factory;
 use React\Socket\Server;
 use React\Stream\Stream;
 
+/**
+ * Upswarm supervisor server.
+ */
 class Supervisor
 {
-    protected $localStream;
+    const UNKNOW_SERVICE = 'unknow';
+
+    /**
+     * Socket that will be used to receive connections from Services and enxange
+     * messages with then.
+     * @var \React\Socket\Server
+     */
     protected $remoteStream;
+
+    /**
+     * ReactPHP loop.
+     * @var \React\EventLoop\LoopInterface;
+     */
     protected $loop;
-    protected $services = [];
+
+    /**
+     * Services that are running.
+     *
+     * @example [
+     *              'ServiceAName' => [
+     *                  <Process>,
+     *                  <Process>
+     *              ],
+     *              'ServiceBName' => [
+     *                  <Process>,
+     *                  <Process>
+     *              ]
+     *          ];
+     *
+     * @var array
+     */
+    protected $processes = [];
+
+    /**
+     * Connections that are open within $remoteStream. Whenever a new connection
+     * is openned that connection is placed as an 'unknow' service. After that
+     * same service sends a Message with the data type 'Identify' it is placed
+     * in the correct array.
+     *
+     * @example [
+     *              'unknow' => [ // New connections
+     *                  '<id>' => <connection>,
+     *                  '<id>' => <connection>
+     *              ],
+     *              'ServiceAName' => [ // Connections of services identified as "ServiceAName"
+     *                  '<id>' => <connection>,
+     *                  '<id>' => <connection>
+     *              ],
+     *              'ServiceBName' => [
+     *                  '<id>' => <connection>,
+     *              ]
+     *          ];
+     *
+     * @var array
+     */
     protected $connections = [];
 
+    /**
+     * Initializes the Supervisor
+     */
     public function __construct()
     {
-        $this->loop = Factory::create();
+        $this->loop         = Factory::create();
         $this->remoteStream = new Server($this->loop);
-        // $this->localStream = new Stream('/tmp/microservices.stream', $this->loop);
 
-        $this->prepareCommandHub($this->remoteStream);
-        // $this->prepareCommandHub($this->localStream);
+        $this->prepareMessageHandling($this->remoteStream);
     }
 
-    public function prepareCommandHub(EventEmitterInterface $stream)
+    /**
+     * Register the basic events on how incoming messages will be handled by
+     * the Supervisor.
+     * @param  EventEmitterInterface $stream Socket that will be used to receive connections from Services and enxange messages with then.
+     * @return void
+     */
+    protected function prepareMessageHandling(EventEmitterInterface $stream)
     {
-        $service = 'unknow';
-
+        // Whenever a new connection is received
         $stream->on('connection', function ($conn) use ($service) {
-            $this->connections[$service][] = $conn;
+            // Place it as an unknow connections
+            $this->connections[static::UNKNOW_SERVICE][] = $conn;
 
+            // If data is received from it, dispatch or evaluate message
             $conn->on('data', function ($data) use ($conn) {
-                $command = unserialize($data);
-                $this->runCommand($command, $conn);
+                $message = unserialize($data);
+                if ($message instanceof Message) {
+                    $this->loop->nextTick(function () use ($message, $conn) {
+                        $this->dispatchMessage($message, $conn);
+                    });
+                }
             });
 
-            $conn->on('end', function () use ($service, $conn) {
-                $key = array_search($conn, $this->connections[$service]);
+            // If connection is terminated, remove it from connections
+            $conn->on('end', function () use ($conn) {
+                $key = array_search($conn, $this->connections[static::UNKNOW_SERVICE]);
                 if ($key) {
-                    unset($this->connections[$service][$key]);
+                    unset($this->connections[static::UNKNOW_SERVICE][$key]);
                 }
             });
         });
     }
 
-    protected function runCommand(Command $command, $conn)
+    /**
+     * Dispatchs incoming message to an Service or to be evaluated by the
+     * Supervisor.
+     *
+     * @param  Message $message Incoming message.
+     * @param  Stream  $conn    Connection from where the message came from.
+     *
+     * @return void
+     */
+    protected function dispatchMessage(Message $message, Stream $conn)
     {
-        echo "    command: ".json_encode($command)."\n";
+        echo "command: ".json_encode($message)."\n";
 
-        if ($command->receipt) {
-            $this->loop->nextTick(function () use ($command) {
-                $this->deliverCommand($command, $command->receipt);
-            });
+        // If message have an receipt. Redirect message to it.
+        if ($message->receipt) {
+            $this->deliverMessage($message, $message->receipt);
+
+            return;
         }
 
-        if ('spawn' == $command->command) {
-            $this->loop->nextTick(function () use ($command) {
-                $this->spawn($command->params->param0);
-            });
-        }
+        $this->evaluateMessageToSupervisor($message, $conn);
+    }
 
-        if ('identify' == $command->command) {
-            $this->loop->nextTick(function () use ($command, $conn) {
-                $this->connections[$command->params->param0][$command->params->param1] = $conn;
+    /**
+     * Evaluates a message that was directed to the Supervisor.
+     *
+     * @param  Message $message Incoming message.
+     * @param  Stream  $conn    Connection from where the message came from.
+     *
+     * @return void
+     */
+    protected function evaluateMessageToSupervisor(Message $message, Stream $conn)
+    {
+        switch ($message->getDataType()) {
+            case SpawnService::class:
+                $this->spawn($message->getData()->service);
+                break;
 
-                $key = array_search($conn, $this->connections['unknow']);
-                unset($this->connections['unknow']);
+            case Identify::class:
+                $this->identify($message->getData(), $conn);
+                break;
 
-                $conn->on('end', function () use ($command) {
-                    unset ($this->connections[$command->params->param0][$command->params->param1]);
-                });
-            });
-        }
-
-        if ('echo' == $command->command) {
-            $this->loop->nextTick(function () use ($command) {
-                echo $command->params->param0;
-            });
-        }
-
-        if ('dump' == $command->command) {
-            $this->loop->nextTick(function () use ($command) {
-                var_dump($command->params->param0);
-            });
+            default:
+                echo "Unknow instruction in Message to supervisor: ".$message->getDataType();
+                break;
         }
     }
 
-    protected function deliverCommand(Command $command, $receipt)
+    /**
+     * Delives the given Message to the receipt Service
+     *
+     * @param  Message $message Incoming message.
+     * @param  string  $receipt String identifying the receipt. It may be the name or an id of a Service.
+     *
+     * @return void
+     */
+    protected function deliverMessage(Message $message, string $receipt)
     {
-        echo "Delivering command {$command->command} to {$receipt}: ";
+        echo "Delivering command {$message->getDataType()} to {$receipt}: ";
+        // If the receipt is not an Id (it's a name then)
         if (! ctype_xdigit($receipt)) {
+            // Deliver the message to any Service instance of that name.
             if (isset($this->connections[$receipt])) {
-                foreach ($this->connections[$receipt] as $conn) {
-                    $conn->write(serialize($command));
-                    echo "Done\n";
-                    break;
-                }
+                $random_key = array_rand($this->connections[$receipt]);
+                $this->connections[$receipt][$random_key]->write(serialize($command));
             }
             return;
         }
 
+        // If the receipt is an Id
         foreach ($this->connections as $service) {
+            // Iterate throught the connections and deliver the message.
             foreach ($service as $id => $conn) {
                 if ($id == $receipt) {
-                    echo "Do";
                     $conn->write(serialize($command));
-                    echo "ne\n";
                     return;
                 }
             }
         }
     }
 
-    public function spawn($service)
+    /**
+     * Spawn a new instance of $service
+     *
+     * @param  string $serviceName Name of the service to be spawned.
+     *
+     * @return void
+     */
+    public function spawn(string $serviceName)
     {
-        $service = str_replace('\\', '\\\\', $service);
-        $process = new Process("exec php main.php $service");
+        // Prepares to create new process
+        $process = new Process("exec php main.php ".str_replace('\\', '\\\\', $serviceName));
 
-        $this->loop->nextTick(function () use ($process, $service) {
+        $this->loop->nextTick(function () use ($process, $serviceName) {
+            // Starts process and pipe outputs to supervisor
             $process->start($this->loop);
-            $this->services[$service][] = $process;
+            $this->processes[$serviceName][] = $process;
 
-            $process->stdout->on('data', function ($output) use ($service) {
-                echo "Child {$service}: {$output}";
-            });
+            $echoChildOutput = function ($output) use ($serviceName) {
+                echo "[{$serviceName}]: {$output}";
+            };
 
-            $process->stderr->on('data', function ($output) use ($service) {
-                echo "Child {$service}: {$output}";
-            });
+            $process->stdout->on('data', $echoChildOutput);
+            $process->stderr->on('data', $echoChildOutput);
         });
 
-        $process->on('exit', function ($exitCode, $termSignal) use ($process, $service) {
-            $key = array_search($process, $this->services[$service]);
-            echo "Child $service exit $exitCode $termSignal\n";
-            unset($this->services[$service][$key]);
+        // Register exit event of process
+        $process->on('exit', function ($exitCode, $termSignal) use ($process, $serviceName) {
+            $key = array_search($process, $this->processes[$serviceName]);
+            echo "[$serviceName] exit $exitCode $termSignal\n";
+            unset($this->processes[$serviceName][$key]);
         });
     }
 
+    /**
+     * Parse Itentify instruction that came from a connection.
+     *
+     * @param  Identify $instruction Intetification instruction.
+     * @param  Stream   $conn        Connection to be identified.
+     *
+     * @return void
+     */
+    public function identify(Identify $instruction, Stream $conn)
+    {
+        if (! (is_string($instruction->serviceName) && is_string($instruction->serviceId))) {
+            return;
+        }
+
+        // Register connection in the correct name and with it's id
+        $this->connections[$instruction->serviceName][$instruction->serviceId] = $conn;
+
+        // Removes connection from the unknow connections
+        $key = array_search($conn, $this->connections[static::UNKNOW_SERVICE]);
+        unset($this->connections[static::UNKNOW_SERVICE]);
+
+        // Registers callback to remove connection if it ends.
+        $conn->on('end', function () use ($message) {
+            unset($this->connections[$instruction->serviceName][$instruction->serviceId]);
+        });
+    }
+
+    /**
+     * Runs supervisor process.
+     *
+     * @return void
+     */
     public function run()
     {
         $this->remoteStream->listen(4000);
+
+        // Spawn main service
+        $this->loop->nextTick(function () {
+            $this->spawn('App\\Main');
+        });
 
         $this->loop->addPeriodicTimer(5, function () {
             // foreach (array_keys($this->connections) as $key) {
             //     echo "$key:";
             //     echo json_encode(array_keys($this->connections[$key])).PHP_EOL;
             // }
-        });
-
-        $this->loop->nextTick(function () {
-            $this->spawn('App\\Main');
         });
 
         $this->loop->run();
