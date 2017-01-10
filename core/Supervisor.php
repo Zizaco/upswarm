@@ -24,6 +24,12 @@ class Supervisor
     protected $remoteStream;
 
     /**
+     * Port that the supervisor will listen to
+     * @var int
+     */
+    protected $port;
+
+    /**
      * ReactPHP loop.
      * @var \React\EventLoop\LoopInterface;
      */
@@ -73,8 +79,10 @@ class Supervisor
 
     /**
      * Initializes the Supervisor
+     *
+     * @param integer $port Port to listen to.
      */
-    public function __construct()
+    public function __construct(int $port = 8300)
     {
         $this->loop         = Factory::create();
         $this->remoteStream = new Server($this->loop);
@@ -263,7 +271,7 @@ class Supervisor
      */
     public function run()
     {
-        $this->remoteStream->listen(4000);
+        $this->remoteStream->listen($this->port);
 
         // Spawn main service
         $this->loop->nextTick(function () {
