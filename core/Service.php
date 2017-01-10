@@ -16,30 +16,29 @@ use React\Stream\Stream;
  */
 abstract class Service
 {
-
     /**
      * Unique identifier
      * @var string
      */
-    protected $id;
+    private $id;
 
     /**
      * Socket to comunicate with the Supervisor
      * @var Stream
      */
-    protected $supervisorConnection;
+    private $supervisorConnection;
 
     /**
      * ReactPHP loop.
      * @var LoopInterface
      */
-    protected $loop;
+    private $loop;
 
     /**
      * Service event emitter
      * @var EventEmitter
      */
-    protected $eventEmitter;
+    private $eventEmitter;
 
     /**
      * Retrieves the ReactPHP event loop
@@ -48,6 +47,24 @@ abstract class Service
     public function getLoop(): LoopInterface
     {
         return $this->loop;
+    }
+
+    /**
+     * Retrieves the EventEmitter of the service.
+     * @return EventEmitter
+     */
+    public function getEventEmitter(): EventEmitter
+    {
+        return $this->eventEmitter;
+    }
+
+    /**
+     * Retrieves the Service id
+     * @return string
+     */
+    public function getId(): string
+    {
+        return $this->id;
     }
 
     /**
