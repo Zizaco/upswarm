@@ -46,7 +46,14 @@ class HttpServer
     }
 
     /**
-     * Register routes
+     * Register routes. Due to the nature of Upswarm the routes handlers are
+     * services and it's methods. Because of this, the HttpServer will be always
+     * ready to receive new requests.
+     *
+     * @example $httpServer->routes(function ($r) {
+     *              $r->addRoute('GET', '/do-something/{id}', 'App\\MyService@action');
+     *              // ...
+     *          });
      *
      * @param callable $registerRoutes A callable that will receive a \FastRoute\RouteCollector as the parameter.
      *
@@ -57,6 +64,25 @@ class HttpServer
         $this->dispatcher = \FastRoute\simpleDispatcher($registerRoutes);
 
         $this->registerRequestHandlers();
+
+        return $this;
+    }
+
+    /**
+     * Registers an service to handle exceptions. Due to the nature of Upswarm
+     * it's good to dispatch the error handling to a different service. By
+     * doing this, the HttpServer will be always ready to receive new
+     * requests.
+     *
+     * @example $httpServer->errorHandler('App\\MyService');
+     *
+     * @param  string $service Service name (class name).
+     *
+     * @return self
+     */
+    public function errorHandler(string $service)
+    {
+        $this->errorHandler = $service;
 
         return $this;
     }
@@ -124,6 +150,8 @@ class HttpServer
                 $this->service->sendCommand($command);
                 $promise = $command->getPromisse();
             } catch (\Exception $e) {
+                if ($this->errorHandler) {
+                }
                 $promise = new RejectedPromise($e->getMessage());
             }
 
@@ -146,6 +174,7 @@ class HttpServer
      * @param  \React\Http\Request $request Request to be dispatched.
      *
      * @throws RouteDispatcher404Exception If uri didn't match any route.
+     * @throws RouteDispatcher405Exception If matched uri don't allow the method.
      *
      * @return return Command
      */
@@ -161,7 +190,7 @@ class HttpServer
                 break;
             case Dispatcher::METHOD_NOT_ALLOWED:
                 $allowedMethods = $routeInfo[1];
-                throw new RouteDispatcher404Exception($request->getMethod(), $request->getPath());
+                throw new RouteDispatcher405Exception($request->getMethod(), $request->getPath());
 
                 break;
             case Dispatcher::FOUND:

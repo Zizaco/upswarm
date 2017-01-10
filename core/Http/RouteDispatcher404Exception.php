@@ -5,7 +5,7 @@ namespace Core\Http;
 use Exception;
 
 /**
- * For when the HttpServer don't have an Dispatcher registered.
+ * For when a route was not found.
  */
 class RouteDispatcher404Exception extends Exception
 {
