@@ -20,34 +20,6 @@ class Main extends Service
             $this->sendMessage(new Message(new SpawnService(Controller::class)));
         });
 
-        $loop->addTimer(2, function () {
-            $this->sendMessage(new Message(new SpawnService(Controller::class)));
-        });
-
-        $loop->addTimer(3, function () {
-            $this->sendMessage(new Message(new SpawnService(Controller::class)));
-        });
-
-        $loop->addTimer(4, function () {
-            $this->sendMessage(new Message(new SpawnService(Controller::class)));
-        });
-
-        $loop->addTimer(5, function () {
-            $this->sendMessage(new Message(new SpawnService(Controller::class)));
-        });
-
-        $loop->addTimer(6, function () {
-            $this->sendMessage(new Message(new SpawnService(Controller::class)));
-        });
-
-        $loop->addTimer(7, function () {
-            $this->sendMessage(new Message(new SpawnService(Controller::class)));
-        });
-
-        $loop->addTimer(8, function () {
-            $this->sendMessage(new Message(new SpawnService(Controller::class)));
-        });
-
         // $loop->addPeriodicTimer(5, function () use ($commandBus) {
         //     $command = new Command('echo', [".\n"]);
         //     $commandBus->write(serialize($command));
