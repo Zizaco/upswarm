@@ -2,10 +2,11 @@
 
 namespace Core;
 
+use Core\Exceptions\ServiceException;
 use Core\Exceptions\UnserializableMessageDataException;
+use Exception;
 use React\Promise\Deferred;
 use React\Promise\Promise;
-use Exceptions;
 use stdClass;
 
 /**
@@ -98,7 +99,10 @@ final class Message
         try {
             $this->data = serialize($data);
         } catch (Exception $e) {
-            throw new UnserializableMessageDataException($data, 0, $e);
+            if (! $e instanceof Exception) {
+                throw new UnserializableMessageDataException($data, 0, $e);
+            }
+            $this->data = serialize(new ServiceException(get_class($e).' '.$e->getMessage(), $e->getCode(), $e));
         }
 
         return $this;
@@ -143,6 +147,16 @@ final class Message
     }
 
     /**
+     * Returns the deferred of the response.
+     *
+     * @return Deferred
+     */
+    public function getDeferred(): Deferred
+    {
+        return $this->deferred;
+    }
+
+    /**
      * Tells if this command expects an response. Which will be true if the
      * getPromisse was called before.
      *
@@ -182,10 +196,25 @@ final class Message
     {
         return [
             'id',
-            'command',
-            'params',
+            'type',
+            'data',
             'sender',
             'receipt',
         ];
+    }
+
+    /**
+     * Returns an string representation of the Message.
+     *
+     * @return string String representation.
+     */
+    public function __toString()
+    {
+        return json_encode([
+            'id' => $this->id,
+            'type' => $this->type,
+            'sender' => $this->sender,
+            'receipt' => $this->receipt,
+        ]);
     }
 }
