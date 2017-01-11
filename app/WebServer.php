@@ -14,8 +14,9 @@ class WebServer extends Service
         $server = new HttpServer($this);
 
         $server->routes(function ($r) {
-            $r->addRoute('GET', '/hello[/{name}]', 'App\\Controller@hello');
-            $r->addRoute('GET', '/world', 'App\\Controller@world');
+            $r->addRoute('GET', '/users/index', 'App\\Controller@users');
+            // $r->addRoute('GET', '/hello[/{name}]', 'App\\Controller@hello');
+            // $r->addRoute('GET', '/world', 'App\\Controller@world');
         });
 
         $server->listen(1337);

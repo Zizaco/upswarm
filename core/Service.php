@@ -107,7 +107,9 @@ abstract class Service
             // Register callback for incoming Messages
             $stream->on('data', function ($data) {
                 $message = unserialize($data);
-                $this->reactToIncomingMessage($message);
+                if ($message instanceof Message) {
+                    $this->reactToIncomingMessage($message);
+                }
             });
 
             // Stops loop (and exit service) if connection ends
@@ -182,7 +184,7 @@ abstract class Service
         $message->sender = $this->id;
 
         // Add a timeout to reject the promisse of the message.
-        $timeout = $this->loop->addTimer(3, function () use ($message) {
+        $timeout = $this->loop->addTimer(10, function () use ($message) {
             $message->getDeferred()->reject();
             $this->eventEmitter->removeAllListeners($message->id);
         });

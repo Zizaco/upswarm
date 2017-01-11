@@ -166,7 +166,7 @@ class HttpServer
             $promise->then(
                 function ($message) use ($reactResponse) {
                     $httpResponse = $message->getData();
-                    $reactResponse->writeHead($httpResponse->code);
+                    $reactResponse->writeHead($httpResponse->code, $httpResponse->headers);
                     $reactResponse->end($httpResponse->data);
                     unset($httpResponse);
                 },
