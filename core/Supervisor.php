@@ -141,8 +141,6 @@ class Supervisor
      */
     protected function dispatchMessage(Message $message, Stream $conn)
     {
-        echo "command: $message\n";
-
         // If message have an receipt. Redirect message to it.
         if ($message->receipt) {
             $this->deliverMessage($message, $message->receipt);

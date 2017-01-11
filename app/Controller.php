@@ -47,9 +47,10 @@ class Controller extends Service
         return new HttpResponse(['Content-Type' => 'application/json; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], 200, $data);
     }
 
-    public function hello($request, $name = "world")
+    public function hello()
     {
-        return new HttpResponse(['Content-Type' => 'text/plain'], 200, "Hellow! $name");
+        $data = json_encode(['hello' => 'World']);
+        return new HttpResponse(['Content-Type' => 'application/json; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], 200, $data);
     }
 
     public function world($request)

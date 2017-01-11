@@ -12,8 +12,8 @@ use React\SocketClient\Connector;
 use React\Stream\Stream;
 
 /**
- * An small service class that aims to encapsulate the logic regarding sending
- * an Message to the Supervisor
+ * Component that handles the procedure of sending messages to the Supervisor
+ * or other services.
  */
 class MessageSender
 {
@@ -36,10 +36,12 @@ class MessageSender
      * Service event emitter
      * @var EventEmitter
      */
-    private $eventEmitter;
+    protected $eventEmitter;
 
     /**
-     * Stores the signature of the messages and the amount
+     * Stores a history of signatures of exchanged messages that had a Response.
+     * This is used in order to predict the Response for similar frequent
+     * Messages.
      * @var array
      */
     protected $exchangedMessages = [];
@@ -50,17 +52,26 @@ class MessageSender
      */
     public function __construct(Service $service)
     {
-        $this->service = $service;
+        $this->service      = $service;
         $this->eventEmitter = $service->getEventEmitter();
         $this->registerPredictionTimeframe();
     }
 
+    /**
+     * Do the preparation of a Message object that will be sent. The preparation
+     * process consists of the registration of the callback and the resolution
+     * of the Deferred of the message.
+     *
+     * @param  Message $message Message being prepared to be sent.
+     *
+     * @return boolean Response of message could be predicted.
+     */
     protected function prepareForResponse(Message $message)
     {
         $signature = $message->getSignature();
 
         if (isset($this->exchangedMessages[$signature]) && is_object($this->exchangedMessages[$signature])) {
-            $this->resolveDefered($message, $this->exchangedMessages[$signature]);
+            $this->resolveDeferred($message, $this->exchangedMessages[$signature]);
             return true;
         } elseif (! isset($this->exchangedMessages[$signature])) {
             $this->exchangedMessages[$signature] = [];
@@ -127,7 +138,7 @@ class MessageSender
         });
     }
 
-    protected function resolveDefered(Message $message, Message $response)
+    protected function resolveDeferred(Message $message, Message $response)
     {
         $message->getDeferred()->resolve($response);
     }
@@ -143,7 +154,7 @@ class MessageSender
 
             $this->exchangedMessages[$signature][$responseSignature]++;
 
-            if ($this->exchangedMessages[$signature][$responseSignature] >= static::RESPONSE_PREDICTION_THRESHOLD) {
+            if (count($this->exchangedMessages[$signature]) == 1 && $this->exchangedMessages[$signature][$responseSignature] >= static::RESPONSE_PREDICTION_THRESHOLD) {
                 $this->exchangedMessages[$signature] = $response;
             }
         }
@@ -152,8 +163,17 @@ class MessageSender
     protected function registerPredictionTimeframe()
     {
         $this->service->getLoop()->addPeriodicTimer(static::RESPONSE_PREDICTION_TIMEFRAME, function () {
-            unset($this->exchangedMessages);
-            $this->exchangedMessages = [];
+            foreach ($this->exchangedMessages as $key => $value) {
+                if (is_array($value)) {
+                    foreach ($value as $subKey => $subValue) {
+                        $this->exchangedMessages[$key][$subKey] == ((int)$subValue) - 1;
+                    }
+                }
+
+                if (is_object($value)) {
+                    $this->exchangedMessages[$key] = [$value->getSignature() => static::RESPONSE_PREDICTION_THRESHOLD - 1];
+                }
+            }
         });
     }
 }
