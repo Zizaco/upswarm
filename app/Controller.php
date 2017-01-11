@@ -1,28 +1,31 @@
 <?php
 namespace App;
 
-use Core\Command;
+use Core\Http\HttpResponse;
+use Core\Message;
 use Core\Service;
 use React\EventLoop\LoopInterface;
 use React\Stream\Stream;
 
 class Controller extends Service
 {
-    public function serve(LoopInterface $loop, Stream $commandBus)
+    public function handleMessage(Message $message, LoopInterface $loop)
     {
+        $httpRequest = $message->getData();
+        $actionName  = $httpRequest->action;
+
+        $response = $this->$actionName($httpRequest->request, ...array_values($httpRequest->params));
+
+        $message->respond(new Message($response));
     }
 
-    protected function receiveCommand(Command $command)
+    public function hello($request, $name = "world")
     {
-        if ('request' == $command->command) {
-            $request = $command->params->param0;
-            dump($request);
-            $command->respond(new Command('response', $this->respond($request)));
-        }
+        return new HttpResponse([], 200, "Hellow! $name");
     }
 
-    public function respond($request)
+    public function world($request)
     {
-        return "OMG!";
+        return new HttpResponse([], 200, "Worldah!");
     }
 }

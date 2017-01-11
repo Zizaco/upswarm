@@ -2,29 +2,26 @@
 
 namespace App;
 
-use Core\Command;
+use Core\Instruction\SpawnService;
+use Core\Message;
 use Core\Service;
 use React\EventLoop\LoopInterface;
 use React\Stream\Stream;
 
 class Main extends Service
 {
-    public function serve(LoopInterface $loop, Stream $commandBus)
+    public function serve(LoopInterface $loop)
     {
         $loop->addTimer(0.1, function () {
-            $this->sendCommand(new Command('spawn', HttpServer::class));
+            $this->sendMessage(new Message(new SpawnService(WebServer::class)));
         });
 
         $loop->addTimer(0.2, function () {
-            $this->sendCommand(new Command('spawn', Controller::class));
+            $this->sendMessage(new Message(new SpawnService(Controller::class)));
         });
 
-        $loop->addTimer(0.2, function () {
-            $this->sendCommand(new Command('spawn', Controller::class));
-        });
-
-        $loop->addTimer(0.3, function () {
-            $this->sendCommand(new Command('spawn', Controller::class));
+        $loop->addTimer(2, function () {
+            $this->sendMessage(new Message(new SpawnService(Controller::class)));
         });
 
         // $loop->addPeriodicTimer(5, function () use ($commandBus) {
