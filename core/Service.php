@@ -60,6 +60,15 @@ abstract class Service
     }
 
     /**
+     * Retrieves the EventEmitter of the service.
+     * @return EventEmitter
+     */
+    public function getSupervisorConnection(): Stream
+    {
+        return $this->supervisorConnection;
+    }
+
+    /**
      * Retrieves the Service id
      * @return string
      */
@@ -77,9 +86,10 @@ abstract class Service
      */
     public function run(int $port = 8300)
     {
-        $this->id           = uniqid();
-        $this->eventEmitter = new EventEmitter;
-        $this->loop         = Factory::create();
+        $this->id            = uniqid();
+        $this->eventEmitter  = new EventEmitter;
+        $this->loop          = Factory::create();
+        $this->messageSender = new MessageSender($this);
 
         $this->registerMessageResponseCallback();
         $this->connectWithSupervisor($port);
@@ -157,6 +167,8 @@ abstract class Service
      */
     public function sendMessage(Message $message)
     {
+        return $this->messageSender->sendMessage($message);
+
         // On the next tick of the loop
         $this->loop->nextTick(function () use ($message) {
             // Register callback to fullfill promisse if Message has deferred.
@@ -169,32 +181,6 @@ abstract class Service
         });
 
         return $message;
-    }
-
-    /**
-     * Registers callbacks to Resolve or Reject the deferred of the message.
-     *
-     * @param  Message $message Message that expects a response.
-     *
-     * @return void
-     */
-    private function registerDeferredCallback(Message $message)
-    {
-        // Identify that this service should receive the response message.
-        $message->sender = $this->id;
-
-        // Add a timeout to reject the promisse of the message.
-        $timeout = $this->loop->addTimer(10, function () use ($message) {
-            $message->getDeferred()->reject();
-            $this->eventEmitter->removeAllListeners($message->id);
-        });
-
-        // Registers callback to resolve promisse if a response message is received.
-        $this->eventEmitter->on($message->id, function ($value) use ($message, $timeout) {
-            $timeout->cancel();
-            $message->getDeferred()->resolve($value);
-            $this->eventEmitter->removeAllListeners($message->id);
-        });
     }
 
     /**

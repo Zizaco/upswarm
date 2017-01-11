@@ -188,6 +188,16 @@ final class Message
     }
 
     /**
+     * Get an signatura that can be used for comparison between Messages in
+     * order to learn if they are the same.
+     * @return string
+     */
+    public function getSignature()
+    {
+        return md5(sprintf('%s:%s:%s', $this->type, $this->data, $this->receipt));
+    }
+
+    /**
      * Tells which Fields should not be discarted when serializing a message.
      *
      * @return array Field that will not be serialized

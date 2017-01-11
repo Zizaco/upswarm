@@ -164,15 +164,17 @@ class HttpServer
             }
 
             $promise->then(
-                function ($message) use ($reactResponse) {
+                function ($message) use ($reactResponse, $request) {
                     $httpResponse = $message->getData();
                     $reactResponse->writeHead($httpResponse->code, $httpResponse->headers);
+                    $request->close();
                     $reactResponse->end($httpResponse->data);
                     unset($httpResponse);
                 },
-                function ($errorString) use ($reactResponse) {
+                function ($errorString) use ($reactResponse, $request) {
                     $reactResponse->writeHead(500);
                     $reactResponse->end($errorString ?: "Internal server error.");
+                    $request->close();
                     unset($httpResponse);
                 }
             );
