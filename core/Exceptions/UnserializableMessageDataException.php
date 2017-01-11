@@ -2,9 +2,9 @@
 
 namespace Core\Exceptions;
 
-use Exception;
+use Core\Exceptions\ServiceException;
 
-class UnserializableMessageDataException extends Exception
+class UnserializableMessageDataException extends ServiceException
 {
     public function __construct($data = null, $code = 0, $previous = null)
     {
