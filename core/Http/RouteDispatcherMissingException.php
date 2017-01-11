@@ -2,12 +2,12 @@
 
 namespace Core\Http;
 
-use Exception;
+use Core\Exceptions\ServiceException;
 
 /**
  * For when the HttpServer don't have an Dispatcher registered.
  */
-class RouteDispatcherMissingException extends Exception
+class RouteDispatcherMissingException extends ServiceException
 {
     public function __construct($message = 'Route dispatcher missing. Call \'HttpServer::routes\' before calling \'HttpServer::listen\'', $code = 0)
     {

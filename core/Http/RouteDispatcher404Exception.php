@@ -2,12 +2,12 @@
 
 namespace Core\Http;
 
-use Exception;
+use Core\Exceptions\ServiceException;
 
 /**
  * For when a route was not found.
  */
-class RouteDispatcher404Exception extends Exception
+class RouteDispatcher404Exception extends ServiceException
 {
     public function __construct($method = "GET", $route = "/", $code = 404)
     {

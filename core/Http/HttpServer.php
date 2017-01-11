@@ -2,7 +2,7 @@
 
 namespace Core\Http;
 
-use Core\Command;
+use Core\Message;
 use Core\Service;
 use FastRoute\Dispatcher;
 use React\EventLoop\LoopInterface;
@@ -30,6 +30,12 @@ class HttpServer
      * @var Dispatcher
      */
     protected $dispatcher;
+
+    /**
+     * Name of service that will handle exceptions
+     * @var string
+     */
+    protected $errorHandler;
 
     protected $reactHttpServer;
     protected $reactSocket;
@@ -144,25 +150,30 @@ class HttpServer
     {
         $server = $this->getReactHttpServer();
 
-        $server->on('request', function ($request, $response) {
+        $server->on('request', function ($request, $reactResponse) {
             try {
-                $command = $this->dispatch($request);
-                $this->service->sendCommand($command);
-                $promise = $command->getPromisse();
+                $message = $this->dispatch($request);
+                $this->service->sendMessage($message);
+                $promise = $message->getPromisse();
             } catch (\Exception $e) {
                 if ($this->errorHandler) {
+                    $promise = $this->service->sendMessage($e, $this->errorHandler)->getPromisse();
+                } else {
+                    $promise = new RejectedPromise($e->getMessage());
                 }
-                $promise = new RejectedPromise($e->getMessage());
             }
 
             $promise->then(
-                function ($value) use ($response) {
-                    $response->writeHead(200);
-                    $response->end($value->params->param0);
+                function ($message) use ($reactResponse) {
+                    $httpResponse = $message->getData();
+                    $reactResponse->writeHead($httpResponse->code);
+                    $reactResponse->end($httpResponse->data);
+                    unset($httpResponse);
                 },
-                function ($message) use ($response) {
-                    $response->writeHead(500);
-                    $response->end($message ?: "Internal server error.");
+                function ($errorString) use ($reactResponse) {
+                    $reactResponse->writeHead(500);
+                    $reactResponse->end($errorString ?: "Internal server error.");
+                    unset($httpResponse);
                 }
             );
         });
@@ -176,11 +187,11 @@ class HttpServer
      * @throws RouteDispatcher404Exception If uri didn't match any route.
      * @throws RouteDispatcher405Exception If matched uri don't allow the method.
      *
-     * @return return Command
+     * @return return Message
      */
     protected function dispatch(\React\Http\Request $request)
     {
-        $uri = $request->getHeaders()['Host'].$request->getPath();
+        $uri       = $request->getHeaders()['Host'].$request->getPath();
         $routeInfo = $this->dispatcher->dispatch($request->getMethod(), $request->getPath());
 
         switch ($routeInfo[0]) {
@@ -197,7 +208,11 @@ class HttpServer
                 $handler = $routeInfo[1];
                 $vars = $routeInfo[2];
 
-                return new Command('request', array_merge([$request], $vars), $handler);
+                if (strstr($handler, '@')) {
+                    list($handler, $action) = explode('@', $handler);
+                }
+
+                return new Message(new HttpRequest($request, $action ?? null, $vars), $handler);
         }
     }
 }
