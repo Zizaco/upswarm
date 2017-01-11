@@ -2,6 +2,8 @@
 
 namespace Core;
 
+use Core\Instruction\Identify;
+use Core\Instruction\SpawnService;
 use Core\Message;
 use Evenement\EventEmitterInterface;
 use React\ChildProcess\Process;
@@ -90,6 +92,7 @@ class Supervisor
     {
         $this->loop         = Factory::create();
         $this->remoteStream = new Server($this->loop);
+        $this->port         = $port;
 
         $this->prepareMessageHandling($this->remoteStream);
     }
@@ -103,7 +106,7 @@ class Supervisor
     protected function prepareMessageHandling(EventEmitterInterface $stream)
     {
         // Whenever a new connection is received
-        $stream->on('connection', function ($conn) use ($service) {
+        $stream->on('connection', function ($conn) {
             // Place it as an unknow connections
             $this->connections[static::UNKNOW_SERVICE][] = $conn;
 
@@ -138,7 +141,7 @@ class Supervisor
      */
     protected function dispatchMessage(Message $message, Stream $conn)
     {
-        echo "command: ".json_encode($message)."\n";
+        echo "command: $message\n";
 
         // If message have an receipt. Redirect message to it.
         if ($message->receipt) {
@@ -185,13 +188,12 @@ class Supervisor
      */
     protected function deliverMessage(Message $message, string $receipt)
     {
-        echo "Delivering command {$message->getDataType()} to {$receipt}: ";
         // If the receipt is not an Id (it's a name then)
         if (! ctype_xdigit($receipt)) {
             // Deliver the message to any Service instance of that name.
             if (isset($this->connections[$receipt])) {
                 $random_key = array_rand($this->connections[$receipt]);
-                $this->connections[$receipt][$random_key]->write(serialize($command));
+                $this->connections[$receipt][$random_key]->write(serialize($message));
             }
             return;
         }
@@ -201,7 +203,7 @@ class Supervisor
             // Iterate throught the connections and deliver the message.
             foreach ($service as $id => $conn) {
                 if ($id == $receipt) {
-                    $conn->write(serialize($command));
+                    $conn->write(serialize($message));
                     return;
                 }
             }
@@ -263,7 +265,7 @@ class Supervisor
         unset($this->connections[static::UNKNOW_SERVICE]);
 
         // Registers callback to remove connection if it ends.
-        $conn->on('end', function () use ($message) {
+        $conn->on('end', function () use ($instruction) {
             unset($this->connections[$instruction->serviceName][$instruction->serviceId]);
         });
     }

@@ -2,7 +2,8 @@
 
 namespace Core;
 
-use Core\Command;
+use Core\Instruction\Identify;
+use Core\Message;
 use Evenement\EventEmitter;
 use React\Dns\Resolver\Factory as DnsResolver;
 use React\EventLoop\Factory;
@@ -128,7 +129,7 @@ abstract class Service
     private function registerMessageResponseCallback()
     {
         $this->eventEmitter->on('respond', function (Message $message) {
-            $this->sendCommand($message);
+            $this->sendMessage($message);
         });
     }
 
@@ -139,7 +140,9 @@ abstract class Service
      */
     private function sendIdentificationMessage()
     {
-        $this->sendCommand(new Message('identify', [static::class, $this->id]));
+        $this->sendMessage(
+            new Message(new Identify(static::class, $this->getId()))
+        );
     }
 
     /**
@@ -155,7 +158,7 @@ abstract class Service
         // On the next tick of the loop
         $this->loop->nextTick(function () use ($message) {
             // Register callback to fullfill promisse if Message has deferred.
-            if ($message->deferred) {
+            if ($message->expectsResponse()) {
                 $this->registerDeferredCallback($message);
             }
 
@@ -180,13 +183,15 @@ abstract class Service
 
         // Add a timeout to reject the promisse of the message.
         $timeout = $this->loop->addTimer(3, function () use ($message) {
-            $message->deferred->reject();
+            $message->getDeferred()->reject();
+            $this->eventEmitter->removeAllListeners($message->id);
         });
 
         // Registers callback to resolve promisse if a response message is received.
         $this->eventEmitter->on($message->id, function ($value) use ($message, $timeout) {
             $timeout->cancel();
-            $message->deferred->resolve($value);
+            $message->getDeferred()->resolve($value);
+            $this->eventEmitter->removeAllListeners($message->id);
         });
     }
 
@@ -227,5 +232,7 @@ abstract class Service
      *
      * @return void
      */
-    abstract public function serve(LoopInterface $loop);
+    public function serve(LoopInterface $loop)
+    {
+    }
 }
