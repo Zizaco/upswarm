@@ -1,15 +1,13 @@
 <?php
 namespace App;
 
+use Core\Util\Http\Controller as BaseController;
 use Core\Util\Http\HttpResponse;
-use Core\Message;
-use Core\Service;
-use React\EventLoop\LoopInterface;
-use React\Stream\Stream;
 use PDO;
 use PDOException;
+use React\EventLoop\LoopInterface;
 
-class Controller extends Service
+class Controller extends BaseController
 {
     protected $dbConn;
 
@@ -26,35 +24,20 @@ class Controller extends Service
         $this->dbConn = new PDO('mysql:host=127.0.0.1;dbname=benchmark', 'app', 'secret');
     }
 
-    public function handleMessage(Message $message, LoopInterface $loop)
-    {
-        $httpRequest = $message->getData();
-        $actionName  = $httpRequest->action;
-
-        $response = $this->$actionName($httpRequest->request, ...array_values($httpRequest->params));
-
-        $message->respond(new Message($response));
-    }
-
     public function users()
     {
         $data = [];
-        foreach($this->dbConn->query('SELECT * FROM users LIMIT 25', PDO::FETCH_ASSOC) as $row) {
+        $queryResult = $this->dbConn->query('SELECT * FROM users LIMIT 25', PDO::FETCH_ASSOC);
+
+        foreach($queryResult as $row) {
             $data[] = $row;
         }
-        $data = json_encode($data);
 
-        return new HttpResponse(['Content-Type' => 'application/json; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], 200, $data);
+        return $data;
     }
 
     public function hello()
     {
-        $data = json_encode(['hello' => 'World']);
-        return new HttpResponse(['Content-Type' => 'application/json; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], 200, $data);
-    }
-
-    public function world($request)
-    {
-        return new HttpResponse(['Content-Type' => 'text/plain'], 200, "Worldah!");
+        return "Hello world";
     }
 }
