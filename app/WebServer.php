@@ -3,7 +3,7 @@
 namespace App;
 
 use Core\Service;
-use Core\Http\HttpServer;
+use Core\Util\Http\HttpServer;
 use React\EventLoop\LoopInterface;
 use React\Stream\Stream;
 

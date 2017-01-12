@@ -1,7 +1,7 @@
 <?php
 namespace App;
 
-use Core\Http\HttpResponse;
+use Core\Util\Http\HttpResponse;
 use Core\Message;
 use Core\Service;
 use React\EventLoop\LoopInterface;

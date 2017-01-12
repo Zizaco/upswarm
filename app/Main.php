@@ -20,6 +20,10 @@ class Main extends Service
             $this->sendMessage(new Message(new SpawnService(Controller::class)));
         });
 
+        $loop->addTimer(2, function () {
+            $this->sendMessage(new Message(new SpawnService(Controller::class)));
+        });
+
         // $loop->addPeriodicTimer(5, function () use ($commandBus) {
         //     $command = new Command('echo', [".\n"]);
         //     $commandBus->write(serialize($command));
