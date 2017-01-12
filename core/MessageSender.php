@@ -18,7 +18,7 @@ use React\Stream\Stream;
 class MessageSender
 {
     const RESPONSE_PREDICTION_THRESHOLD = 5;
-    const RESPONSE_PREDICTION_TIMEFRAME = 2;
+    const RESPONSE_PREDICTION_TIMEFRAME = 1;
 
     /**
      * Upswarm service.
@@ -68,6 +68,8 @@ class MessageSender
      */
     protected function prepareForResponse(Message $message)
     {
+        // Identify that this service should receive the response message.
+        $message->sender = $this->service->getId();
         $signature = $message->getSignature();
 
         if (isset($this->exchangedMessages[$signature]) && is_object($this->exchangedMessages[$signature])) {
@@ -99,6 +101,9 @@ class MessageSender
             // Register callback to fullfill promisse if Message has deferred.
             if ($message->expectsResponse()) {
                 if ($this->prepareForResponse($message)) {
+                    $this->service->getLoop()->addTimer(2, function () use ($message) {
+                        $this->supervisorConnection->write(serialize($message));
+                    });
                     return;
                 }
             }
@@ -120,9 +125,6 @@ class MessageSender
      */
     private function registerDeferredCallback(Message $message, string $messageSignature)
     {
-        // Identify that this service should receive the response message.
-        $message->sender = $this->service->getId();
-
         // Add a timeout to reject the promisse of the message.
         $timeout = $this->service->getLoop()->addTimer(10, function () use ($message) {
             $message->getDeferred()->reject();
@@ -138,11 +140,28 @@ class MessageSender
         });
     }
 
+    /**
+     * Resolve the Deferred of the $message with the given $response.
+     *
+     * @param  Message $message  Message to have it's deferred resolved.
+     * @param  Message $response Message that will be used as the response.
+     *
+     * @return void
+     */
     protected function resolveDeferred(Message $message, Message $response)
     {
         $message->getDeferred()->resolve($response);
     }
 
+    /**
+     * Take into account that a Message and a Response with the same signatures
+     * have been exchanged in order to be able to predict future responses.
+     *
+     * @param  string  $signature Signature of th Message being sent.
+     * @param  Message $response  Message that was received as a response.
+     *
+     * @return void
+     */
     protected function countForPrediction($signature, Message $response)
     {
         $responseSignature = $response->getSignature();
@@ -160,13 +179,24 @@ class MessageSender
         }
     }
 
+    /**
+     * Register an periodic procedure of decreasing the counter of messages
+     *
+     * @return void
+     */
     protected function registerPredictionTimeframe()
     {
         $this->service->getLoop()->addPeriodicTimer(static::RESPONSE_PREDICTION_TIMEFRAME, function () {
             foreach ($this->exchangedMessages as $key => $value) {
                 if (is_array($value)) {
                     foreach ($value as $subKey => $subValue) {
-                        $this->exchangedMessages[$key][$subKey] == ((int)$subValue) - 1;
+                        $this->exchangedMessages[$key][$subKey] = ((int)$subValue) - 1;
+                        if ($subValue <= 0) {
+                            unset($this->exchangedMessages[$key][$subKey]);
+                        }
+                    }
+                    if (empty($value)) {
+                        unset($this->exchangedMessages[$key]);
                     }
                 }
 

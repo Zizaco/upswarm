@@ -112,7 +112,7 @@ class Supervisor
 
             // If data is received from it, dispatch or evaluate message
             $conn->on('data', function ($data) use ($conn) {
-                $message = unserialize($data);
+                $message = @unserialize($data);
                 if ($message instanceof Message) {
                     $this->loop->nextTick(function () use ($message, $conn) {
                         $this->dispatchMessage($message, $conn);
