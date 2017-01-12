@@ -1,6 +1,6 @@
 <?php
 
-namespace Core\Http;
+namespace Core\Util\Http;
 
 use React\Http\Request;
 
