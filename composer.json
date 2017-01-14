@@ -1,15 +1,28 @@
 {
+    "name": "zizaco/upswarm",
+    "description": "Multi-processed, async, fault-tolerant micro-framework for writing service-oriented applications.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Zizaco Zizuini",
+            "email": "zizaco@gmail.com"
+        }
+    ],
     "require": {
+        "php": ">=7.0",
         "react/react": "^0.4.2",
-        "league/climate": "^3.2",
-        "jeremeamia/superclosure": "^2.3",
         "symfony/var-dumper": "^3.2",
-        "nikic/fast-route": "^1.1"
+        "nikic/fast-route": "^1.1",
+        "symfony/console": "^3.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "~4.0"
     },
     "autoload": {
         "psr-4": {
-            "Core\\": "core/",
-            "App\\": "app/"
+            "Upswarm\\": "src/"
         }
-    }
+    },
+    "minimum-stability": "dev"
 }
