@@ -1,8 +1,8 @@
 <?php
 
-namespace Core\Exceptions;
+namespace Upswarm\Exceptions;
 
-use Core\Exceptions\ServiceException;
+use Upswarm\Exceptions\ServiceException;
 
 class UnserializableMessageDataException extends ServiceException
 {

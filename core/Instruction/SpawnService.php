@@ -1,6 +1,6 @@
 <?php
 
-namespace Core\Instruction;
+namespace Upswarm\Instruction;
 
 /**
  * Instruction to spawn a new service service instance.

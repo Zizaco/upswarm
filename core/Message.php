@@ -2,8 +2,8 @@
 
 namespace Core;
 
-use Core\Exceptions\ServiceException;
-use Core\Exceptions\UnserializableMessageDataException;
+use Upswarm\Exceptions\ServiceException;
+use Upswarm\Exceptions\UnserializableMessageDataException;
 use Exception;
 use React\Promise\Deferred;
 use React\Promise\Promise;

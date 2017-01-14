@@ -2,8 +2,8 @@
 
 namespace Core;
 
-use Core\Instruction\Identify;
-use Core\Message;
+use Upswarm\Instruction\Identify;
+use Upswarm\Message;
 use Evenement\EventEmitter;
 use React\Dns\Resolver\Factory as DnsResolver;
 use React\EventLoop\Factory;

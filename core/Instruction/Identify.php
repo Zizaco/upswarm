@@ -1,6 +1,6 @@
 <?php
 
-namespace Core\Instruction;
+namespace Upswarm\Instruction;
 
 /**
  * Instruction to identify a service within the Supervisor.

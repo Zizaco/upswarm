@@ -1,6 +1,6 @@
 <?php
 
-namespace Core\Util\Http;
+namespace Upswarm\Util\Http;
 
 /**
  * Http Response

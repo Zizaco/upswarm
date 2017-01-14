@@ -1,9 +1,9 @@
 <?php
 
-namespace Core\Util\Http;
+namespace Upswarm\Util\Http;
 
-use Core\Message;
-use Core\Service;
+use Upswarm\Message;
+use Upswarm\Service;
 use FastRoute\Dispatcher;
 use React\EventLoop\LoopInterface;
 use React\Promise\RejectedPromise;

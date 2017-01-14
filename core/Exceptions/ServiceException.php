@@ -1,6 +1,6 @@
 <?php
 
-namespace Core\Exceptions;
+namespace Upswarm\Exceptions;
 
 use Exception;
 use Serializable;

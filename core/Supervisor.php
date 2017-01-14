@@ -2,9 +2,9 @@
 
 namespace Core;
 
-use Core\Instruction\Identify;
-use Core\Instruction\SpawnService;
-use Core\Message;
+use Upswarm\Instruction\Identify;
+use Upswarm\Instruction\SpawnService;
+use Upswarm\Message;
 use Evenement\EventEmitterInterface;
 use React\ChildProcess\Process;
 use React\EventLoop\Factory;

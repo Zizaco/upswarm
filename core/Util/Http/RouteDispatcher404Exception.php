@@ -1,8 +1,8 @@
 <?php
 
-namespace Core\Util\Http;
+namespace Upswarm\Util\Http;
 
-use Core\Exceptions\ServiceException;
+use Upswarm\Exceptions\ServiceException;
 
 /**
  * For when a route was not found.
