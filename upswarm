@@ -1,0 +1,6 @@
+#!/usr/bin/env php
+<?php
+
+require 'vendor/autoload.php';
+
+(new Upswarm\Cli\EntryPoint)->run();
