@@ -1,0 +1,9 @@
+{
+    "settings": {
+        "port": 8300
+    },
+    "services": {
+        "App\\WebServer": 1,
+        "App\\Controller": 2
+    }
+}
