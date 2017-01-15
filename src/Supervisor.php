@@ -1,6 +1,6 @@
 <?php
 
-namespace Core;
+namespace Upswarm;
 
 use Upswarm\Instruction\Identify;
 use Upswarm\Instruction\SpawnService;
@@ -60,6 +60,18 @@ class Supervisor
     protected $processes = [];
 
     /**
+     * The target service topology
+     *
+     * @example [
+     *              'ServiceAName' => 3,
+     *              'ServiceBName' => 1
+     *          ];
+     *
+     * @var array
+     */
+    protected $topology = [];
+
+    /**
      * Connections that are open within $remoteStream. Whenever a new connection
      * is openned that connection is placed as an 'unknow' service. After that
      * same service sends a Message with the data type 'Identify' it is placed
@@ -95,6 +107,58 @@ class Supervisor
         $this->port         = $port;
 
         $this->prepareMessageHandling($this->remoteStream);
+        $this->prepareTopology();
+    }
+
+    /**
+     * Listen to a TopologyReader update events in order to be able to tell
+     * how is the topology in real time.
+     *
+     * @return void
+     */
+    protected function prepareTopology()
+    {
+        $this->topologyReader = new TopologyReader($this->loop);
+
+        $this->topologyReader->on('info', function ($message) {
+            echo "$message\n";
+        });
+
+        $this->topologyReader->on('error', function ($message) {
+            echo "<error>$message</error>\n";
+        });
+
+        $this->topologyReader->on('update', function ($topology) {
+            $this->topology = $topology;
+            $this->updateTopology();
+        });
+    }
+
+    /**
+     * Updates the topology (the amount of services of each type) running based
+     * in the $topology property of the Supervisor.
+     *
+     * @return void
+     */
+    protected function updateTopology()
+    {
+        foreach ($this->topology as $serviceName => $amount) {
+            $diff = $amount - count($this->processes[$serviceName] ?? []);
+
+            if ($diff > 0) {
+                for ($i=0; $i < $diff; $i++) {
+                    $this->loop->addTimer($i, function () use ($serviceName) {
+                        $this->spawn($serviceName);
+                    });
+                }
+            } elseif ($diff < 0) {
+                for ($i=0; $i < $diff*-1; $i++) {
+                    $this->loop->addTimer($i, function () use ($serviceName) {
+                        $this->stop($serviceName);
+                    });
+                }
+            }
+        }
     }
 
     /**
@@ -122,9 +186,11 @@ class Supervisor
 
             // If connection is terminated, remove it from connections
             $conn->on('end', function () use ($conn) {
-                $key = array_search($conn, $this->connections[static::UNKNOW_SERVICE]);
-                if ($key) {
-                    unset($this->connections[static::UNKNOW_SERVICE][$key]);
+                if (isset($this->connections[static::UNKNOW_SERVICE])) {
+                    $key = array_search($conn, $this->connections[static::UNKNOW_SERVICE]);
+                    if ($key) {
+                        unset($this->connections[static::UNKNOW_SERVICE][$key]);
+                    }
                 }
             });
         });
@@ -209,7 +275,7 @@ class Supervisor
     }
 
     /**
-     * Spawn a new instance of $service
+     * Spawn a new instance of $serviceName
      *
      * @param  string $serviceName Name of the service to be spawned.
      *
@@ -217,8 +283,10 @@ class Supervisor
      */
     public function spawn(string $serviceName)
     {
+        echo "Spawnning $serviceName\n";
+
         // Prepares to create new process
-        $process = new Process("exec php main.php ".str_replace('\\', '\\\\', $serviceName));
+        $process = new Process("exec ./upswarm spawn ".str_replace('\\', '\\\\', $serviceName));
 
         $this->loop->nextTick(function () use ($process, $serviceName) {
             // Starts process and pipe outputs to supervisor
@@ -242,6 +310,23 @@ class Supervisor
     }
 
     /**
+     * Stops an instance of $serviceName
+     *
+     * @param  string $serviceName Name of the service to be stopped.
+     *
+     * @return void
+     */
+    public function stop(string $serviceName)
+    {
+        echo "Stopping $serviceName\n";
+
+        if (isset($this->processes[$serviceName]) && count($this->processes[$serviceName]) > 0) {
+            $key = array_rand($this->processes[$serviceName]);
+            $this->processes[$serviceName][$key]->terminate();
+        }
+    }
+
+    /**
      * Parse Itentify instruction that came from a connection.
      *
      * @param  Identify $instruction Intetification instruction.
@@ -259,12 +344,16 @@ class Supervisor
         $this->connections[$instruction->serviceName][$instruction->serviceId] = $conn;
 
         // Removes connection from the unknow connections
-        $key = array_search($conn, $this->connections[static::UNKNOW_SERVICE]);
-        unset($this->connections[static::UNKNOW_SERVICE]);
+        if (isset($this->connections[static::UNKNOW_SERVICE])) {
+            $key = array_search($conn, $this->connections[static::UNKNOW_SERVICE]);
+            unset($this->connections[static::UNKNOW_SERVICE]);
+        }
 
         // Registers callback to remove connection if it ends.
         $conn->on('end', function () use ($instruction) {
-            unset($this->connections[$instruction->serviceName][$instruction->serviceId]);
+            if (isset($this->connections[$instruction->serviceName][$instruction->serviceId])) {
+                unset($this->connections[$instruction->serviceName][$instruction->serviceId]);
+            }
         });
     }
 
@@ -276,11 +365,6 @@ class Supervisor
     public function run()
     {
         $this->remoteStream->listen($this->port);
-
-        // Spawn main service
-        $this->loop->nextTick(function () {
-            $this->spawn('App\\Main');
-        });
 
         $this->loop->addPeriodicTimer(5, function () {
             // foreach (array_keys($this->connections) as $key) {
