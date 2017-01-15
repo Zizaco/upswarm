@@ -1,6 +1,6 @@
 <?php
 
-namespace Core;
+namespace Upswarm;
 
 use Upswarm\Exceptions\ServiceException;
 use Upswarm\Exceptions\UnserializableMessageDataException;

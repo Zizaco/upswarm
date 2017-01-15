@@ -1,6 +1,6 @@
 <?php
 
-namespace Core;
+namespace Upswarm;
 
 use Upswarm\Instruction\Identify;
 use Upswarm\Message;

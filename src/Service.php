@@ -1,6 +1,6 @@
 <?php
 
-namespace Core;
+namespace Upswarm;
 
 use Upswarm\Instruction\Identify;
 use Upswarm\Message;
@@ -80,11 +80,12 @@ abstract class Service
     /**
      * Runs the service
      *
+     * @param string  $host Supervisor host address.
      * @param integer $port Supervisor port.
      *
      * @return void
      */
-    public function run(int $port = 8300)
+    public function run(string $host = '127.0.0.1', int $port = 8300)
     {
         $this->id            = uniqid();
         $this->eventEmitter  = new EventEmitter;
@@ -92,18 +93,19 @@ abstract class Service
         $this->messageSender = new MessageSender($this);
 
         $this->registerMessageResponseCallback();
-        $this->connectWithSupervisor($port);
+        $this->connectWithSupervisor($host, $port);
         $this->loop->run();
     }
 
     /**
      * Stabilish connection with the supervisor.
      *
+     * @param string  $host Supervisor host address.
      * @param integer $port Supervisor port.
      *
      * @return void
      */
-    private function connectWithSupervisor(int $port)
+    private function connectWithSupervisor(string $host, int $port)
     {
         $dns    = new DnsResolver();
         $socket = new Connector($this->loop, $dns->createCached('8.8.8.8', $this->loop));
