@@ -4,9 +4,57 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "hash": "e4c9ba33d4fc4d4709ccdbf49d910da4",
-    "content-hash": "34138ac28c603fcb2e220fd0d01b7ecf",
+    "hash": "a81317797098aae95ca4323e16f42022",
+    "content-hash": "449ecc262ff40e22e932627d32389dfe",
     "packages": [
+        {
+            "name": "clue/block-react",
+            "version": "v1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/clue/php-block-react.git",
+                "reference": "ed70f8d497dd265e30bc7dd19cf86b2e149b1ecf"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/clue/php-block-react/zipball/ed70f8d497dd265e30bc7dd19cf86b2e149b1ecf",
+                "reference": "ed70f8d497dd265e30bc7dd19cf86b2e149b1ecf",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3",
+                "react/event-loop": "0.4.*|0.3.*",
+                "react/promise": "~2.1|~1.2",
+                "react/promise-timer": "~1.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/functions.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Christian Lück",
+                    "email": "christian@lueck.tv"
+                }
+            ],
+            "description": "Integrate async React PHP components into your blocking environment",
+            "homepage": "https://github.com/clue/php-block-react",
+            "keywords": [
+                "async",
+                "blocking",
+                "event loop",
+                "promise",
+                "reactphp",
+                "synchronous"
+            ],
+            "time": "2016-03-09 15:10:22"
+        },
         {
             "name": "doctrine/inflector",
             "version": "dev-master",
@@ -443,6 +491,56 @@
                 "promises"
             ],
             "time": "2016-12-22 14:09:01"
+        },
+        {
+            "name": "react/promise-timer",
+            "version": "v1.1.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/reactphp/promise-timer.git",
+                "reference": "ddedc67bfd7f579fc83e66ff67e3564b179297dd"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/reactphp/promise-timer/zipball/ddedc67bfd7f579fc83e66ff67e3564b179297dd",
+                "reference": "ddedc67bfd7f579fc83e66ff67e3564b179297dd",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3",
+                "react/event-loop": "~0.4.0|~0.3.0",
+                "react/promise": "~2.1|~1.2"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "React\\Promise\\Timer\\": "src/"
+                },
+                "files": [
+                    "src/functions.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Christian Lück",
+                    "email": "christian@lueck.tv"
+                }
+            ],
+            "description": "Trivial timeout implementation for Promises",
+            "homepage": "https://github.com/react/promise-timer",
+            "keywords": [
+                "async",
+                "event-loop",
+                "promise",
+                "reactphp",
+                "timeout",
+                "timer"
+            ],
+            "time": "2016-12-27 08:12:19"
         },
         {
             "name": "react/react",
@@ -1550,12 +1648,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/phpunit.git",
-                "reference": "4324a4470aad51a0c475ec1d70cd548ce41c043f"
+                "reference": "43a6ae5a9ec7cd063eba6bb336fbb9c59954e3e3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/4324a4470aad51a0c475ec1d70cd548ce41c043f",
-                "reference": "4324a4470aad51a0c475ec1d70cd548ce41c043f",
+                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/43a6ae5a9ec7cd063eba6bb336fbb9c59954e3e3",
+                "reference": "43a6ae5a9ec7cd063eba6bb336fbb9c59954e3e3",
                 "shasum": ""
             },
             "require": {
@@ -1614,7 +1712,7 @@
                 "testing",
                 "xunit"
             ],
-            "time": "2016-12-31 06:51:33"
+            "time": "2017-01-18 03:53:19"
         },
         {
             "name": "phpunit/phpunit-mock-objects",
