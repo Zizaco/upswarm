@@ -123,7 +123,7 @@ abstract class Service
 
             // Register callback for incoming Messages
             $stream->on('data', function ($data) {
-                $message = unserialize($data);
+                $message = @unserialize($data);
                 if ($message instanceof Message) {
                     $this->reactToIncomingMessage($message);
                 }
