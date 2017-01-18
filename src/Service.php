@@ -87,14 +87,19 @@ abstract class Service
      */
     public function run(string $host = '127.0.0.1', int $port = 8300)
     {
+        global $_serviceLoop;
+
         $this->id            = uniqid();
         $this->eventEmitter  = new EventEmitter;
-        $this->loop          = Factory::create();
+        $this->loop          = $_serviceLoop = Factory::create();
         $this->messageSender = new MessageSender($this);
 
         $this->registerMessageResponseCallback();
         $this->connectWithSupervisor($host, $port);
-        $this->loop->run();
+
+        while (true) {
+            $this->loop->run();
+        }
     }
 
     /**
