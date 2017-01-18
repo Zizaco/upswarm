@@ -257,7 +257,9 @@ class Supervisor
             // Deliver the message to any Service instance of that name.
             if (isset($this->connections[$receipt])) {
                 $random_key = array_rand($this->connections[$receipt]);
-                $this->connections[$receipt][$random_key]->write(serialize($message));
+                if ($random_key) {
+                    $this->connections[$receipt][$random_key]->write(serialize($message));
+                }
             }
             return;
         }
@@ -366,11 +368,10 @@ class Supervisor
     {
         $this->remoteStream->listen($this->port);
 
-        $this->loop->addPeriodicTimer(5, function () {
-            // foreach (array_keys($this->connections) as $key) {
-            //     echo "$key:";
-            //     echo json_encode(array_keys($this->connections[$key])).PHP_EOL;
-            // }
+        $this->loop->addTimer(5, function () {
+            $this->loop->addPeriodicTimer(2, function () {
+                $this->updateTopology();
+            });
         });
 
         $this->loop->run();
