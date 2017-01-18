@@ -142,7 +142,10 @@ final class Message
      */
     public function getPromisse(): Promise
     {
-        $this->deferred = new Deferred();
+        if (! $this->deferred) {
+            $this->deferred = new Deferred();
+        }
+
         return $this->deferred->promise();
     }
 
