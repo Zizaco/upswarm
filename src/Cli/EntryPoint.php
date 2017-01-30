@@ -26,6 +26,7 @@ class EntryPoint
         $this->registerCommands([
             ServeCommand::class,
             SpawnCommand::class,
+            KillCommand::class,
         ]);
     }
 
