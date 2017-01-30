@@ -2,14 +2,15 @@
 
 namespace Upswarm;
 
-use Upswarm\Instruction\Identify;
-use Upswarm\Instruction\SpawnService;
-use Upswarm\Message;
 use Evenement\EventEmitterInterface;
 use React\ChildProcess\Process;
 use React\EventLoop\Factory;
 use React\Socket\Server;
 use React\Stream\Stream;
+use Upswarm\Instruction\Identify;
+use Upswarm\Instruction\KillService;
+use Upswarm\Instruction\SpawnService;
+use Upswarm\Message;
 
 /**
  * Upswarm supervisor orchestrate services and handle message exchanging
@@ -232,6 +233,10 @@ class Supervisor
                 $this->spawn($message->getData()->service);
                 break;
 
+            case KillService::class:
+                $this->kill($message);
+                break;
+
             case Identify::class:
                 $this->identify($message->getData(), $conn);
                 break;
@@ -309,6 +314,38 @@ class Supervisor
             echo "[$serviceName] exit $exitCode $termSignal\n";
             unset($this->processes[$serviceName][$key]);
         });
+    }
+
+    /**
+     * Kills a service or an instance
+     *
+     * @param  Message $killingMessage Message containing a KillService instruction.
+     *
+     * @return void
+     */
+    public function kill(Message $killingMessage)
+    {
+        if ($killingMessage->getDataType() !== KillService::class) {
+            echo "Invalid KillService instruction received.";
+            return;
+        }
+
+        $instruction = $killingMessage->getData();
+        $serviceName = $instruction->service;
+
+        echo "Killing {$instruction->service}\n";
+
+        // Kills processes
+        if (isset($this->processes[$serviceName])) {
+            foreach ($this->processes[$serviceName] as $process) {
+                $process->terminate();
+            }
+        }
+
+        // Send response
+        $response = new Message("'$serviceName' killed successfully.");
+        $killingMessage->respond($response);
+        $this->deliverMessage($response, $response->receipt);
     }
 
     /**
