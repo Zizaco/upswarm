@@ -18,7 +18,7 @@ use React\Stream\Stream;
 class MessageSender
 {
     const RESPONSE_PREDICTION_THRESHOLD = 5;
-    const RESPONSE_PREDICTION_TIMEFRAME = 1;
+    const RESPONSE_PREDICTION_TIMEFRAME = 2;
 
     /**
      * Upswarm service.
@@ -101,7 +101,7 @@ class MessageSender
             // Register callback to fullfill promisse if Message has deferred.
             if ($message->expectsResponse()) {
                 if ($this->prepareForResponse($message)) {
-                    $this->service->getLoop()->addTimer(2, function () use ($message) {
+                    $this->service->getLoop()->addTimer(5, function () use ($message) {
                         $this->supervisorConnection->write(serialize($message));
                     });
                     return;
@@ -127,7 +127,7 @@ class MessageSender
     {
         // Add a timeout to reject the promisse of the message.
         $timeout = $this->service->getLoop()->addTimer(10, function () use ($message) {
-            $message->getDeferred()->reject();
+            $message->getDeferred()->reject(new Message("Timeout. Service did not responded within 10 seconds."));
             $this->eventEmitter->removeAllListeners($message->id);
         });
 
