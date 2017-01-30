@@ -42,6 +42,13 @@ abstract class Service
     private $eventEmitter;
 
     /**
+     * Controls the main 'while' loop that will make sure that the reactPHP
+     * loop will keep running.
+     * @var integer
+     */
+    private $exit = null;
+
+    /**
      * Retrieves the ReactPHP event loop
      * @return LoopInterface
      */
@@ -97,9 +104,31 @@ abstract class Service
         $this->registerMessageResponseCallback();
         $this->connectWithSupervisor($host, $port);
 
-        while (true) {
+        while (null === $this->exit) {
             $this->loop->run();
         }
+
+        exit($this->exit);
+    }
+
+    /**
+     * Break the service loop and exit the service.
+     *
+     * @param  integer $code Exit code.
+     *
+     * @return void
+     */
+    public function exit(int $code = 0)
+    {
+        $this->exit = $code;
+
+        if ($this->supervisorConnection) {
+            $this->supervisorConnection->close();
+        }
+
+        $this->loop->nextTick(function () {
+            $this->loop->stop();
+        });
     }
 
     /**
