@@ -95,11 +95,13 @@ abstract class Service
     public function run(string $host = '127.0.0.1', int $port = 8300)
     {
         global $_serviceLoop;
+        global $_service;
 
         $this->id            = uniqid();
         $this->eventEmitter  = new EventEmitter;
         $this->loop          = $_serviceLoop = Factory::create();
         $this->messageSender = new MessageSender($this);
+        $_service            = $this;
 
         $this->registerMessageResponseCallback();
         $this->connectWithSupervisor($host, $port);

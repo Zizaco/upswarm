@@ -2,11 +2,12 @@
 
 namespace Upswarm\Util\Http;
 
-use Upswarm\Message;
-use Upswarm\Service;
 use FastRoute\Dispatcher;
 use React\EventLoop\LoopInterface;
 use React\Promise\RejectedPromise;
+use Upswarm\Message;
+use Upswarm\Service;
+use Upswarm\Util\Http\HttpResponse;
 
 /**
  * Upswarm HttpServer wraps the ReactHTTP server.
@@ -153,6 +154,9 @@ class HttpServer
         $server->on('request', function ($request, $reactResponse) {
             try {
                 $message = $this->dispatch($request);
+                if ('self' == $message->receipt) {
+                    return $this->localAction($message->getData(), $request, $reactResponse);
+                }
                 $this->service->sendMessage($message);
                 $promise = $message->getPromisse();
             } catch (\Exception $e) {
@@ -216,5 +220,53 @@ class HttpServer
 
                 return new Message(new HttpRequest($request, $action ?? null, $vars), $handler);
         }
+    }
+
+    /**
+     * Handles requests that are meant to be handled by the same service.
+     *
+     * @param  HttpRequest          $httpRequest   Upswarm Http request.
+     * @param  \React\Http\Request  $request       ReactPHP Http request.
+     * @param  \React\Http\Response $reactResponse ReactPHP Http response object.
+     *
+     * @return void
+     */
+    protected function localAction(HttpRequest $httpRequest, \React\Http\Request $request, \React\Http\Response $reactResponse)
+    {
+        global $_service;
+
+        $actionName  = $httpRequest->action;
+        $actionResponse = $_service->$actionName($httpRequest->request, ...array_values($httpRequest->params));
+
+        if (! $actionResponse instanceof HttpResponse) {
+            $actionResponse = $this->buildResponse($actionResponse, $httpRequest);
+        }
+
+        $reactResponse->writeHead($actionResponse->code, $actionResponse->headers);
+        $request->close();
+        $reactResponse->end($actionResponse->data);
+        unset($actionResponse);
+    }
+
+    /**
+     * Prepares the given input to become an HttpResponse
+     *
+     * @param  mixed       $data    Data that should be "wrapped" in an HttpResponse.
+     * @param  HttpRequest $request Original request.
+     *
+     * @return HttpResponse
+     */
+    protected function buildResponse($data, HttpRequest $request): HttpResponse
+    {
+        if (is_array($data)) {
+            $data = json_encode($data);
+            return new HttpResponse(['Content-Type' => 'application/json; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], 200, $data);
+        }
+
+        if (is_string($data)) {
+            return new HttpResponse(['Content-Type' => 'text/html; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], 200, $data);
+        }
+
+        return $data;
     }
 }
