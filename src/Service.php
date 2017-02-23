@@ -2,14 +2,16 @@
 
 namespace Upswarm;
 
-use Upswarm\Instruction\Identify;
-use Upswarm\Message;
 use Evenement\EventEmitter;
 use React\Dns\Resolver\Factory as DnsResolver;
 use React\EventLoop\Factory;
 use React\EventLoop\LoopInterface;
 use React\SocketClient\Connector;
 use React\Stream\Stream;
+use React\ZMQ\Context;
+use Upswarm\Instruction\Identify;
+use Upswarm\Message;
+use ZMQ;
 
 /**
  * Upswarm service baseclass. Services that will be orchestrated by Upswarm
@@ -25,7 +27,7 @@ abstract class Service
 
     /**
      * Socket to comunicate with the Supervisor
-     * @var Stream
+     * @var \React\ZMQ\SocketWrapper
      */
     private $supervisorConnection;
 
@@ -68,9 +70,9 @@ abstract class Service
 
     /**
      * Retrieves the EventEmitter of the service.
-     * @return EventEmitter
+     * @return \React\ZMQ\SocketWrapper
      */
-    public function getSupervisorConnection(): Stream
+    public function getSupervisorConnection(): \React\ZMQ\SocketWrapper
     {
         return $this->supervisorConnection;
     }
@@ -143,29 +145,33 @@ abstract class Service
      */
     private function connectWithSupervisor(string $host, int $port)
     {
-        $dns    = new DnsResolver();
-        $socket = new Connector($this->loop, $dns->createCached('8.8.8.8', $this->loop));
+        $zmqContext = new Context($this->loop);
+        $this->supervisorConnection = $stream = $zmqContext->getSocket(ZMQ::SOCKET_SUB);
 
-        // Create connection
-        $socket->create('127.0.0.1', $port)->then(function (Stream $stream) {
-            // Stores supervisor connection
-            $this->supervisorConnection = $stream;
-            $this->sendIdentificationMessage();
+        $stream->connect("tcp://127.0.0.1:{$port}");
+        $stream->subscribe($this->id);
+        $stream->subscribe(static::class);
+        $this->sendIdentificationMessage();
 
-            // Register callback for incoming Messages
-            $stream->on('data', function ($data) {
-                $message = @unserialize($data);
-                if ($message instanceof Message) {
-                    $this->reactToIncomingMessage($message);
-                }
-            });
+        // Register callback for incoming Messages
+        $stream->on('messages', function ($data) {
+            // list($recipientAddress, $senderAddress, $serializedMessage) = $data;
+            $message = @unserialize($data[2]);
 
-            // Stops loop (and exit service) if connection ends
-            $stream->on('end', function () {
-                $this->loop->stop();
-            });
+            if ($message instanceof Message) {
+                $this->reactToIncomingMessage($message);
+            }
+        });
 
-            // Executes serve
+        // Stops loop (and exit service) if connection ends
+        $stream->on('error', function ($e) {
+            var_dump($e);
+            echo $e->getMessage();
+            $this->exit($e->getCode() ?: 3);
+        });
+
+        // Executes serve
+        $this->loop->addTimer(1, function () {
             $this->serve($this->loop);
         });
     }
@@ -206,19 +212,6 @@ abstract class Service
     public function sendMessage(Message $message)
     {
         return $this->messageSender->sendMessage($message);
-
-        // On the next tick of the loop
-        $this->loop->nextTick(function () use ($message) {
-            // Register callback to fullfill promisse if Message has deferred.
-            if ($message->expectsResponse()) {
-                $this->registerDeferredCallback($message);
-            }
-
-            // Sends message to the supervisor.
-            $this->supervisorConnection->write(serialize($message));
-        });
-
-        return $message;
     }
 
     /**
@@ -230,7 +223,7 @@ abstract class Service
      */
     private function reactToIncomingMessage(Message $message)
     {
-        if ($message->receipt) {
+        if ($message->recipient) {
             $this->eventEmitter->emit($message->id, [$message]);
             $message->eventEmitter = $this->eventEmitter;
         }

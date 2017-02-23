@@ -154,7 +154,7 @@ class HttpServer
         $server->on('request', function ($request, $reactResponse) {
             try {
                 $message = $this->dispatch($request);
-                if ('self' == $message->receipt) {
+                if ('self' == $message->recipient) {
                     return $this->localAction($message->getData(), $request, $reactResponse);
                 }
                 $this->service->sendMessage($message);

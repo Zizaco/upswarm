@@ -7,10 +7,12 @@ use React\ChildProcess\Process;
 use React\EventLoop\Factory;
 use React\Socket\Server;
 use React\Stream\Stream;
+use React\ZMQ\Context;
 use Upswarm\Instruction\Identify;
 use Upswarm\Instruction\KillService;
 use Upswarm\Instruction\SpawnService;
 use Upswarm\Message;
+use ZMQ;
 
 /**
  * Upswarm supervisor orchestrate services and handle message exchanging
@@ -19,14 +21,9 @@ use Upswarm\Message;
 class Supervisor
 {
     /**
-     * How to name an unknow service in $connections array.
-     */
-    const UNKNOW_SERVICE = 'unknow';
-
-    /**
      * Socket that will be used to receive connections from Services and enxange
      * messages with then.
-     * @var \React\Socket\Server
+     * @var \React\ZMQ\SocketWrapper
      */
     protected $remoteStream;
 
@@ -80,15 +77,15 @@ class Supervisor
      *
      * @example [
      *              'unknow' => [ // New connections
-     *                  '<id>' => <connection>,
-     *                  '<id>' => <connection>
+     *                  '<id>',
+     *                  '<id>'
      *              ],
      *              'ServiceAName' => [ // Connections of services identified as "ServiceAName"
-     *                  '<id>' => <connection>,
-     *                  '<id>' => <connection>
+     *                  '<id>',
+     *                  '<id>'
      *              ],
      *              'ServiceBName' => [
-     *                  '<id>' => <connection>,
+     *                  '<id>'
      *              ]
      *          ];
      *
@@ -104,7 +101,8 @@ class Supervisor
     public function __construct(int $port = 8300)
     {
         $this->loop         = Factory::create();
-        $this->remoteStream = new Server($this->loop);
+        $zmqContext         = new Context($this->loop);
+        $this->remoteStream = $zmqContext->getSocket(ZMQ::SOCKET_PUB);
         $this->port         = $port;
 
         $this->prepareMessageHandling($this->remoteStream);
@@ -165,34 +163,19 @@ class Supervisor
     /**
      * Register the basic events on how incoming messages will be handled by
      * the Supervisor.
+     *
      * @param  EventEmitterInterface $stream Socket that will be used to receive connections from Services and enxange messages with then.
+     *
      * @return void
      */
     protected function prepareMessageHandling(EventEmitterInterface $stream)
     {
-        // Whenever a new connection is received
-        $stream->on('connection', function ($conn) {
-            // Place it as an unknow connections
-            $this->connections[static::UNKNOW_SERVICE][] = $conn;
+        // If data is received from it, dispatch or evaluate message
+        $stream->on('messages', function ($data) {
+            list($recipientAddress, $senderAddress, $serializedMessage) = $data;
 
-            // If data is received from it, dispatch or evaluate message
-            $conn->on('data', function ($data) use ($conn) {
-                $message = @unserialize($data);
-                if ($message instanceof Message) {
-                    $this->loop->nextTick(function () use ($message, $conn) {
-                        $this->dispatchMessage($message, $conn);
-                    });
-                }
-            });
-
-            // If connection is terminated, remove it from connections
-            $conn->on('end', function () use ($conn) {
-                if (isset($this->connections[static::UNKNOW_SERVICE])) {
-                    $key = array_search($conn, $this->connections[static::UNKNOW_SERVICE]);
-                    if ($key) {
-                        unset($this->connections[static::UNKNOW_SERVICE][$key]);
-                    }
-                }
+            $this->loop->nextTick(function () use ($serializedMessage, $recipientAddress, $senderAddress) {
+                $this->dispatchMessage($serializedMessage, $recipientAddress, $senderAddress);
             });
         });
     }
@@ -201,32 +184,36 @@ class Supervisor
      * Dispatchs incoming message to an Service or to be evaluated by the
      * Supervisor.
      *
-     * @param  Message $message Incoming message.
-     * @param  Stream  $conn    Connection from where the message came from.
+     * @param  string $serializedMessage Incoming message.
+     * @param  string $recipientAddress  Address to where the message is going.
+     * @param  string $senderAddress     Address from where the message came from.
      *
      * @return void
      */
-    protected function dispatchMessage(Message $message, Stream $conn)
+    protected function dispatchMessage(string $serializedMessage, string $recipientAddress, string $senderAddress)
     {
-        // If message have an receipt. Redirect message to it.
-        if ($message->receipt) {
-            $this->deliverMessage($message, $message->receipt);
+        // If message have an recipient. Redirect message to it.
+        if ('' != $recipientAddress) {
+            $this->deliverMessage($recipientAddress, $senderAddress, $serializedMessage);
 
             return;
         }
 
-        $this->evaluateMessageToSupervisor($message, $conn);
+        $message = @unserialize($serializedMessage);
+        if ($message && $message instanceof Message) {
+            $this->evaluateMessageToSupervisor($message, $senderAddress);
+        }
     }
 
     /**
      * Evaluates a message that was directed to the Supervisor.
      *
-     * @param  Message $message Incoming message.
-     * @param  Stream  $conn    Connection from where the message came from.
+     * @param  Message $message       Incoming message.
+     * @param  string  $senderAddress Address from where the message came from.
      *
      * @return void
      */
-    protected function evaluateMessageToSupervisor(Message $message, Stream $conn)
+    protected function evaluateMessageToSupervisor(Message $message, string $senderAddress)
     {
         switch ($message->getDataType()) {
             case SpawnService::class:
@@ -238,7 +225,7 @@ class Supervisor
                 break;
 
             case Identify::class:
-                $this->identify($message->getData(), $conn);
+                $this->identify($message->getData(), $senderAddress);
                 break;
 
             default:
@@ -248,37 +235,17 @@ class Supervisor
     }
 
     /**
-     * Delives the given Message to the receipt Service
+     * Delives the given string to the recipient Service
      *
-     * @param  Message $message Incoming message.
-     * @param  string  $receipt String identifying the receipt. It may be the name or an id of a Service.
+     * @param  string $recipientAddress  String identifying the recipient. It may be the name or an id of a Service.
+     * @param  string $senderAddress     Sender to be identified.
+     * @param  string $serializedMessage Message to be delivered.
      *
      * @return void
      */
-    protected function deliverMessage(Message $message, string $receipt)
+    protected function deliverMessage(string $recipientAddress, string $senderAddress, string $serializedMessage)
     {
-        // If the receipt is not an Id (it's a name then)
-        if (! ctype_xdigit($receipt)) {
-            // Deliver the message to any Service instance of that name.
-            if (isset($this->connections[$receipt])) {
-                $random_key = array_rand($this->connections[$receipt]);
-                if ($random_key) {
-                    $this->connections[$receipt][$random_key]->write(serialize($message));
-                }
-            }
-            return;
-        }
-
-        // If the receipt is an Id
-        foreach ($this->connections as $service) {
-            // Iterate throught the connections and deliver the message.
-            foreach ($service as $id => $conn) {
-                if ($id == $receipt) {
-                    $conn->write(serialize($message));
-                    return;
-                }
-            }
-        }
+        $this->remoteStream->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
     }
 
     /**
@@ -300,8 +267,8 @@ class Supervisor
             $process->start($this->loop);
             $this->processes[$serviceName][] = $process;
 
-            $echoChildOutput = function ($output) use ($serviceName) {
-                echo "[{$serviceName}]: {$output}";
+            $echoChildOutput = function ($output) {
+                echo $output;
             };
 
             $process->stdout->on('data', $echoChildOutput);
@@ -345,7 +312,7 @@ class Supervisor
         // Send response
         $response = new Message("'$serviceName' killed successfully.");
         $killingMessage->respond($response);
-        $this->deliverMessage($response, $response->receipt);
+        $this->deliverMessage($response->recipient, '', serialize($response));
     }
 
     /**
@@ -368,32 +335,22 @@ class Supervisor
     /**
      * Parse Itentify instruction that came from a connection.
      *
-     * @param  Identify $instruction Intetification instruction.
-     * @param  Stream   $conn        Connection to be identified.
+     * @param  Identify $instruction   Intetification instruction.
+     * @param  string   $senderAddress Sender to be identified.
      *
      * @return void
      */
-    public function identify(Identify $instruction, Stream $conn)
+    public function identify(Identify $instruction, string $senderAddress)
     {
         if (! (is_string($instruction->serviceName) && is_string($instruction->serviceId))) {
             return;
         }
 
         // Register connection in the correct name and with it's id
-        $this->connections[$instruction->serviceName][$instruction->serviceId] = $conn;
-
-        // Removes connection from the unknow connections
-        if (isset($this->connections[static::UNKNOW_SERVICE])) {
-            $key = array_search($conn, $this->connections[static::UNKNOW_SERVICE]);
-            unset($this->connections[static::UNKNOW_SERVICE]);
-        }
+        $this->connections[$instruction->serviceName][] = $instruction->serviceId;
 
         // Registers callback to remove connection if it ends.
-        $conn->on('end', function () use ($instruction) {
-            if (isset($this->connections[$instruction->serviceName][$instruction->serviceId])) {
-                unset($this->connections[$instruction->serviceName][$instruction->serviceId]);
-            }
-        });
+        // TODO
     }
 
     /**
@@ -403,7 +360,7 @@ class Supervisor
      */
     public function run()
     {
-        $this->remoteStream->listen($this->port);
+        $this->remoteStream->bind("tcp://*:{$this->port}");
 
         $this->loop->addTimer(5, function () {
             $this->loop->addPeriodicTimer(2, function () {

@@ -28,7 +28,7 @@ class MessageSender
 
     /**
      * Socket to comunicate with the Supervisor
-     * @var Stream
+     * @var \React\ZMQ\SocketWrapper
      */
     protected $supervisorConnection;
 
@@ -96,20 +96,24 @@ class MessageSender
             $this->supervisorConnection = $this->service->getSupervisorConnection();
         }
 
+        $recipientAddress  = $message->recipient ?: '';
+        $senderAddress     = $message->sender ?: '';
+        $serializedMessage = serialize($message);
+
         // On the next tick of the loop
         $this->service->getLoop()->nextTick(function () use ($message) {
             // Register callback to fullfill promisse if Message has deferred.
             if ($message->expectsResponse()) {
                 if ($this->prepareForResponse($message)) {
                     $this->service->getLoop()->addTimer(5, function () use ($message) {
-                        $this->supervisorConnection->write(serialize($message));
+                        $this->supervisorConnection->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
                     });
                     return;
                 }
             }
 
             // Sends message to the supervisor.
-            $this->supervisorConnection->write(serialize($message));
+            $this->supervisorConnection->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
         });
 
         return $message;
@@ -162,7 +166,7 @@ class MessageSender
      *
      * @return void
      */
-    protected function countForPrediction($signature, Message $response)
+    protected function countForPrediction(string $signature, Message $response)
     {
         $responseSignature = $response->getSignature();
 
