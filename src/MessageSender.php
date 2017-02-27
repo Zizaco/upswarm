@@ -30,7 +30,7 @@ class MessageSender
      * Socket to comunicate with the Supervisor
      * @var \React\ZMQ\SocketWrapper
      */
-    protected $supervisorConnection;
+    protected $supervisorConnectionOutput;
 
     /**
      * Service event emitter
@@ -92,28 +92,33 @@ class MessageSender
      */
     public function sendMessage(Message $message)
     {
-        if (! $this->supervisorConnection) {
-            $this->supervisorConnection = $this->service->getSupervisorConnection();
+        if (! $this->supervisorConnectionOutput) {
+            $this->supervisorConnectionOutput = $this->service->getSupervisorConnection();
         }
-
-        $recipientAddress  = $message->recipient ?: '';
-        $senderAddress     = $message->sender ?: '';
-        $serializedMessage = serialize($message);
 
         // On the next tick of the loop
         $this->service->getLoop()->nextTick(function () use ($message) {
+
             // Register callback to fullfill promisse if Message has deferred.
             if ($message->expectsResponse()) {
                 if ($this->prepareForResponse($message)) {
                     $this->service->getLoop()->addTimer(5, function () use ($message) {
-                        $this->supervisorConnection->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
+                        $recipientAddress  = $message->recipient ?: '';
+                        $senderAddress     = $message->sender ?: '';
+                        $serializedMessage = serialize($message);
+
+                        $this->supervisorConnectionOutput->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
                     });
                     return;
                 }
             }
 
+            $recipientAddress  = $message->recipient ?: '';
+            $senderAddress     = $message->sender ?: '';
+            $serializedMessage = serialize($message);
+
             // Sends message to the supervisor.
-            $this->supervisorConnection->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
+            $this->supervisorConnectionOutput->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
         });
 
         return $message;

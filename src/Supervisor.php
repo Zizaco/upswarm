@@ -21,11 +21,16 @@ use ZMQ;
 class Supervisor
 {
     /**
-     * Socket that will be used to receive connections from Services and enxange
-     * messages with then.
+     * Socket that will be used to send messages to Services
      * @var \React\ZMQ\SocketWrapper
      */
-    protected $remoteStream;
+    protected $outputStream;
+
+    /**
+     * Socket that will be used to receive messages from services
+     * @var \React\ZMQ\SocketWrapper
+     */
+    protected $inputStream;
 
     /**
      * Port that the supervisor will listen to
@@ -70,7 +75,7 @@ class Supervisor
     protected $topology = [];
 
     /**
-     * Connections that are open within $remoteStream. Whenever a new connection
+     * Connections that are open within $outputStream. Whenever a new connection
      * is openned that connection is placed as an 'unknow' service. After that
      * same service sends a Message with the data type 'Identify' it is placed
      * in the correct array.
@@ -102,10 +107,11 @@ class Supervisor
     {
         $this->loop         = Factory::create();
         $zmqContext         = new Context($this->loop);
-        $this->remoteStream = $zmqContext->getSocket(ZMQ::SOCKET_PUB);
+        $this->outputStream = $zmqContext->getSocket(ZMQ::SOCKET_PUB);
+        $this->inputStream  = $zmqContext->getSocket(ZMQ::SOCKET_PULL);
         $this->port         = $port;
 
-        $this->prepareMessageHandling($this->remoteStream);
+        $this->prepareMessageHandling($this->inputStream);
         $this->prepareTopology();
     }
 
@@ -164,14 +170,14 @@ class Supervisor
      * Register the basic events on how incoming messages will be handled by
      * the Supervisor.
      *
-     * @param  EventEmitterInterface $stream Socket that will be used to receive connections from Services and enxange messages with then.
+     * @param  EventEmitterInterface $inputStream Socket that will be used to receive connections from Services and enxange messages with then.
      *
      * @return void
      */
-    protected function prepareMessageHandling(EventEmitterInterface $stream)
+    protected function prepareMessageHandling(EventEmitterInterface $inputStream)
     {
         // If data is received from it, dispatch or evaluate message
-        $stream->on('messages', function ($data) {
+        $inputStream->on('messages', function ($data) {
             list($recipientAddress, $senderAddress, $serializedMessage) = $data;
 
             $this->loop->nextTick(function () use ($serializedMessage, $recipientAddress, $senderAddress) {
@@ -245,7 +251,20 @@ class Supervisor
      */
     protected function deliverMessage(string $recipientAddress, string $senderAddress, string $serializedMessage)
     {
-        $this->remoteStream->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
+        // If the receipt is not an Id (it's a name then)
+        if (! ctype_xdigit($recipientAddress)) {
+            // Deliver the message to any Service instance of that name.
+            if (isset($this->connections[$recipientAddress])) {
+                $random_key = array_rand($this->connections[$recipientAddress]);
+                if (null !== $random_key) {
+                    $recipientAddress = $this->connections[$recipientAddress][$random_key];
+                }
+            } else {
+                return;
+            }
+        }
+
+        $this->outputStream->sendmulti([$recipientAddress, $senderAddress, $serializedMessage]);
     }
 
     /**
@@ -360,7 +379,8 @@ class Supervisor
      */
     public function run()
     {
-        $this->remoteStream->bind("tcp://*:{$this->port}");
+        $this->inputStream->bind('tcp://*:'.$this->port);
+        $this->outputStream->bind('ipc://upswarm:'.$this->port);
 
         $this->loop->addTimer(5, function () {
             $this->loop->addPeriodicTimer(2, function () {

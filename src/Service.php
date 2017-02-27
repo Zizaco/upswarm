@@ -26,10 +26,16 @@ abstract class Service
     private $id;
 
     /**
-     * Socket to comunicate with the Supervisor
+     * Socket to receive messages with the Supervisor
      * @var \React\ZMQ\SocketWrapper
      */
-    private $supervisorConnection;
+    private $supervisorConnectionInput;
+
+    /**
+     * Socket to send messages with the Supervisor
+     * @var \React\ZMQ\SocketWrapper
+     */
+    private $supervisorConnectionOutput;
 
     /**
      * ReactPHP loop.
@@ -74,7 +80,7 @@ abstract class Service
      */
     public function getSupervisorConnection(): \React\ZMQ\SocketWrapper
     {
-        return $this->supervisorConnection;
+        return $this->supervisorConnectionOutput;
     }
 
     /**
@@ -126,8 +132,12 @@ abstract class Service
     {
         $this->exit = $code;
 
-        if ($this->supervisorConnection) {
-            $this->supervisorConnection->close();
+        if ($this->supervisorConnectionOutput) {
+            $this->supervisorConnectionOutput->close();
+        }
+
+        if ($this->supervisorConnectionInput) {
+            $this->supervisorConnectionInput->close();
         }
 
         $this->loop->nextTick(function () {
@@ -146,11 +156,13 @@ abstract class Service
     private function connectWithSupervisor(string $host, int $port)
     {
         $zmqContext = new Context($this->loop);
-        $this->supervisorConnection = $stream = $zmqContext->getSocket(ZMQ::SOCKET_SUB);
+        $this->supervisorConnectionInput = $stream = $zmqContext->getSocket(ZMQ::SOCKET_SUB);
+        $this->supervisorConnectionOutput = $zmqContext->getSocket(ZMQ::SOCKET_PUSH);
 
-        $stream->connect("tcp://127.0.0.1:{$port}");
+        $stream->connect("ipc://upswarm:{$port}");
         $stream->subscribe($this->id);
-        $stream->subscribe(static::class);
+
+        $this->supervisorConnectionOutput->connect("tcp://127.0.0.1:{$port}");
         $this->sendIdentificationMessage();
 
         // Register callback for incoming Messages
