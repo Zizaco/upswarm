@@ -266,4 +266,16 @@ abstract class Service
     public function serve(LoopInterface $loop)
     {
     }
+
+    /**
+     * Forces the ZMQ sockets to handle incoming events. This may be necessary
+     * if the React loop is being runned out of the main scope.
+     *
+     * @return void
+     */
+    public function forceSocketTick()
+    {
+        $this->supervisorConnectionInput->handleEvent();
+        $this->supervisorConnectionOutput->handleEvent();
+    }
 }

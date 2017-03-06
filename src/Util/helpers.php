@@ -11,6 +11,13 @@ if (! function_exists('waitfor')) {
     function waitfor(\React\Promise\Promise ...$promisse)
     {
         global $_serviceLoop;
+        global $_service;
+
+        // In order to make sure that ZMQ will trigger events while waiting
+        // the promisses to be fulfilled.
+        $_serviceLoop->nextTick(function () use ($_service) {
+            $_service->forceSocketTick();
+        });
 
         if (count($promisse) == 1) {
             return \Clue\React\Block\await($promisse[0], $_serviceLoop, 30);
