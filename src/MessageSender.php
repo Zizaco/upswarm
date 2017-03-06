@@ -136,7 +136,7 @@ class MessageSender
     {
         // Add a timeout to reject the promisse of the message.
         $timeout = $this->service->getLoop()->addTimer(10, function () use ($message) {
-            $message->getDeferred()->reject(new Message("Timeout. Service did not responded within 10 seconds."));
+            $message->getDeferred()->reject(new \Exception("Timeout. Service '{$message->recipient}' did not responded within 10 seconds."));
             $this->eventEmitter->removeAllListeners($message->id);
         });
 

@@ -2,12 +2,13 @@
 
 namespace Upswarm\Util\Http;
 
-use Upswarm\Message;
-use Upswarm\Service;
-use Upswarm\Util\Http\HttpRequest;
 use FastRoute\Dispatcher;
 use React\EventLoop\LoopInterface;
 use React\Promise\RejectedPromise;
+use Upswarm\Exceptions\ServiceException;
+use Upswarm\Message;
+use Upswarm\Service;
+use Upswarm\Util\Http\HttpRequest;
 
 /**
  * Upswarm base controller service.
@@ -32,7 +33,11 @@ class Controller extends Service
         $actionName  = $httpRequest->action;
 
         // Calls action
-        $actionResponse = $this->$actionName($httpRequest->request, ...array_values($httpRequest->params));
+        try {
+            $actionResponse = $this->$actionName($httpRequest->request, ...array_values($httpRequest->params));
+        } catch (\Exception $e) {
+            $actionResponse = $this->buildResponse((string) $e, $httpRequest, 500);
+        }
 
         // Wrapps content into an HttpResponse if necessary.
         if (! $actionResponse instanceof HttpResponse) {
@@ -47,18 +52,19 @@ class Controller extends Service
      *
      * @param  mixed       $data    Data that should be "wrapped" in an HttpResponse.
      * @param  HttpRequest $request Original request.
+     * @param  integer     $code    Http code of the response.
      *
      * @return HttpResponse
      */
-    protected function buildResponse($data, HttpRequest $request): HttpResponse
+    protected function buildResponse($data, HttpRequest $request, int $code = 200): HttpResponse
     {
         if (is_array($data)) {
             $data = json_encode($data);
-            return new HttpResponse(['Content-Type' => 'application/json; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], 200, $data);
+            return new HttpResponse(['Content-Type' => 'application/json; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], $code, $data);
         }
 
         if (is_string($data)) {
-            return new HttpResponse(['Content-Type' => 'text/html; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], 200, $data);
+            return new HttpResponse(['Content-Type' => 'text/html; charset=utf-8', 'Content-Length' => strlen($data), 'Connection' => 'close'], $code, $data);
         }
 
         return $data;
