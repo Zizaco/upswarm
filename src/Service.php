@@ -2,14 +2,16 @@
 
 namespace Upswarm;
 
-use Upswarm\Instruction\Identify;
-use Upswarm\Message;
 use Evenement\EventEmitter;
 use React\Dns\Resolver\Factory as DnsResolver;
 use React\EventLoop\Factory;
 use React\EventLoop\LoopInterface;
 use React\SocketClient\Connector;
 use React\Stream\Stream;
+use React\ZMQ\Context;
+use Upswarm\Instruction\Identify;
+use Upswarm\Message;
+use ZMQ;
 
 /**
  * Upswarm service baseclass. Services that will be orchestrated by Upswarm
@@ -24,10 +26,16 @@ abstract class Service
     private $id;
 
     /**
-     * Socket to comunicate with the Supervisor
-     * @var Stream
+     * Socket to receive messages with the Supervisor
+     * @var \React\ZMQ\SocketWrapper
      */
-    private $supervisorConnection;
+    private $supervisorConnectionInput;
+
+    /**
+     * Socket to send messages with the Supervisor
+     * @var \React\ZMQ\SocketWrapper
+     */
+    private $supervisorConnectionOutput;
 
     /**
      * ReactPHP loop.
@@ -68,11 +76,11 @@ abstract class Service
 
     /**
      * Retrieves the EventEmitter of the service.
-     * @return EventEmitter
+     * @return \React\ZMQ\SocketWrapper
      */
-    public function getSupervisorConnection(): Stream
+    public function getSupervisorConnection(): \React\ZMQ\SocketWrapper
     {
-        return $this->supervisorConnection;
+        return $this->supervisorConnectionOutput;
     }
 
     /**
@@ -124,8 +132,12 @@ abstract class Service
     {
         $this->exit = $code;
 
-        if ($this->supervisorConnection) {
-            $this->supervisorConnection->close();
+        if ($this->supervisorConnectionOutput) {
+            $this->supervisorConnectionOutput->close();
+        }
+
+        if ($this->supervisorConnectionInput) {
+            $this->supervisorConnectionInput->close();
         }
 
         $this->loop->nextTick(function () {
@@ -143,29 +155,35 @@ abstract class Service
      */
     private function connectWithSupervisor(string $host, int $port)
     {
-        $dns    = new DnsResolver();
-        $socket = new Connector($this->loop, $dns->createCached('8.8.8.8', $this->loop));
+        $zmqContext = new Context($this->loop);
+        $this->supervisorConnectionInput = $stream = $zmqContext->getSocket(ZMQ::SOCKET_SUB);
+        $this->supervisorConnectionOutput = $zmqContext->getSocket(ZMQ::SOCKET_PUSH);
 
-        // Create connection
-        $socket->create('127.0.0.1', $port)->then(function (Stream $stream) {
-            // Stores supervisor connection
-            $this->supervisorConnection = $stream;
-            $this->sendIdentificationMessage();
+        $stream->connect("ipc://upswarm:{$port}");
+        $stream->subscribe($this->id);
 
-            // Register callback for incoming Messages
-            $stream->on('data', function ($data) {
-                $message = @unserialize($data);
-                if ($message instanceof Message) {
-                    $this->reactToIncomingMessage($message);
-                }
-            });
+        $this->supervisorConnectionOutput->connect("tcp://127.0.0.1:{$port}");
+        $this->sendIdentificationMessage();
 
-            // Stops loop (and exit service) if connection ends
-            $stream->on('end', function () {
-                $this->loop->stop();
-            });
+        // Register callback for incoming Messages
+        $stream->on('messages', function ($data) {
+            // list($recipientAddress, $senderAddress, $serializedMessage) = $data;
+            $message = @unserialize($data[2]);
 
-            // Executes serve
+            if ($message instanceof Message) {
+                $this->reactToIncomingMessage($message);
+            }
+        });
+
+        // Stops loop (and exit service) if connection ends
+        $stream->on('error', function ($e) {
+            var_dump($e);
+            echo $e->getMessage();
+            $this->exit($e->getCode() ?: 3);
+        });
+
+        // Executes serve
+        $this->loop->addTimer(1, function () {
             $this->serve($this->loop);
         });
     }
@@ -206,19 +224,6 @@ abstract class Service
     public function sendMessage(Message $message)
     {
         return $this->messageSender->sendMessage($message);
-
-        // On the next tick of the loop
-        $this->loop->nextTick(function () use ($message) {
-            // Register callback to fullfill promisse if Message has deferred.
-            if ($message->expectsResponse()) {
-                $this->registerDeferredCallback($message);
-            }
-
-            // Sends message to the supervisor.
-            $this->supervisorConnection->write(serialize($message));
-        });
-
-        return $message;
     }
 
     /**
@@ -230,7 +235,7 @@ abstract class Service
      */
     private function reactToIncomingMessage(Message $message)
     {
-        if ($message->receipt) {
+        if ($message->recipient) {
             $this->eventEmitter->emit($message->id, [$message]);
             $message->eventEmitter = $this->eventEmitter;
         }
@@ -260,5 +265,17 @@ abstract class Service
      */
     public function serve(LoopInterface $loop)
     {
+    }
+
+    /**
+     * Forces the ZMQ sockets to handle incoming events. This may be necessary
+     * if the React loop is being runned out of the main scope.
+     *
+     * @return void
+     */
+    public function forceSocketTick()
+    {
+        $this->supervisorConnectionInput->handleEvent();
+        $this->supervisorConnectionOutput->handleEvent();
     }
 }

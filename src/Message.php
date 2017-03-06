@@ -47,7 +47,7 @@ final class Message
      * It can be the name of a service class or an id.
      * @var string
      */
-    public $receipt;
+    public $recipient;
 
     /**
      * Defered that may be used to resolve an promisse if the message expects
@@ -69,13 +69,13 @@ final class Message
      *
      * @throws UnserializableMessageDataException If $data is not serializable.
      *
-     * @param mixed  $data    Data that will be transported by the message.
-     * @param string $receipt Message destination. null means that the supervisor is the receipt.
+     * @param mixed  $data      Data that will be transported by the message.
+     * @param string $recipient Message destination. null means that the supervisor is the recipient.
      */
-    public function __construct($data, string $receipt = null)
+    public function __construct($data, string $recipient = null)
     {
         $this->id = uniqid('', true);
-        $this->receipt = $receipt;
+        $this->recipient = $recipient;
         $this->setData($data);
     }
 
@@ -183,7 +183,7 @@ final class Message
         // receiving the message will know that $message is responding to the
         // current Message.
         $message->id = $this->id;
-        $message->receipt = $this->sender;
+        $message->recipient = $this->sender;
 
         if ($this->eventEmitter) {
             $this->eventEmitter->emit('respond', [$message]);
@@ -197,7 +197,7 @@ final class Message
      */
     public function getSignature()
     {
-        return md5(sprintf('%s:%s:%s', $this->type, $this->data, $this->receipt));
+        return md5(sprintf('%s:%s:%s', $this->type, $this->data, $this->recipient));
     }
 
     /**
@@ -212,7 +212,7 @@ final class Message
             'type',
             'data',
             'sender',
-            'receipt',
+            'recipient',
         ];
     }
 
@@ -227,7 +227,7 @@ final class Message
             'id' => $this->id,
             'type' => $this->type,
             'sender' => $this->sender,
-            'receipt' => $this->receipt,
+            'recipient' => $this->recipient,
         ]);
     }
 }
