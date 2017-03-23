@@ -159,7 +159,7 @@ abstract class Service
         $this->supervisorConnectionInput = $stream = $zmqContext->getSocket(ZMQ::SOCKET_SUB);
         $this->supervisorConnectionOutput = $zmqContext->getSocket(ZMQ::SOCKET_PUSH);
 
-        $stream->connect("ipc://upswarm:{$port}");
+        $stream->connect("ipc:///tmp/upswarm:{$port}");
         $stream->subscribe($this->id);
 
         $this->supervisorConnectionOutput->connect("tcp://127.0.0.1:{$port}");

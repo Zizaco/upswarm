@@ -380,7 +380,7 @@ class Supervisor
     public function run()
     {
         $this->inputStream->bind('tcp://*:'.$this->port);
-        $this->outputStream->bind('ipc://upswarm:'.$this->port);
+        $this->outputStream->bind('ipc:///tmp/upswarm:'.$this->port);
 
         $this->loop->addTimer(5, function () {
             $this->loop->addPeriodicTimer(2, function () {
