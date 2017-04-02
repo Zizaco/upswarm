@@ -120,7 +120,7 @@ class FunctionalTestCase extends PHPUnit_Framework_TestCase
     protected function haveTheSupervisorIsRunning()
     {
         $this->supervisorPid = exec(
-            'php upswarm serve > .output/supervisor.log 2>&1 & echo $!',
+            'php upswarm serve > tests/.output/supervisor.log 2>&1 & echo $!',
             $output
         );
 
@@ -132,7 +132,7 @@ class FunctionalTestCase extends PHPUnit_Framework_TestCase
         foreach ($services as $service) {
             $serviceLogName = str_replace('\\', '_', $service);
             $service = str_replace('\\', '\\\\', $service);
-            $pid = exec("php upswarm spawn $service > .output/$serviceLogName.log 2>&1 & echo $!");
+            $pid = exec("php upswarm spawn $service > tests/.output/$serviceLogName.log 2>&1 & echo $!");
 
             $this->servicesRunning[$pid] = $service;
         }
@@ -149,7 +149,7 @@ class FunctionalTestCase extends PHPUnit_Framework_TestCase
 
         $this->assertContains(
             $content,
-            file_get_contents(".output/$serviceLogName.log"),
+            file_get_contents("tests/.output/$serviceLogName.log"),
             "Couldn't find '$content' in '$serviceLogName' output."
         );
     }
