@@ -158,10 +158,10 @@ class HttpServer
                     return $this->localAction($message->getData(), $request, $reactResponse);
                 }
                 $this->service->sendMessage($message);
-                $promise = $message->getPromisse();
+                $promise = $message->getPromise();
             } catch (\Exception $e) {
                 if ($this->errorHandler) {
-                    $promise = $this->service->sendMessage($e, $this->errorHandler)->getPromisse();
+                    $promise = $this->service->sendMessage($e, $this->errorHandler)->getPromise();
                 } else {
                     $promise = new RejectedPromise($e->getMessage());
                 }

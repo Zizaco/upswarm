@@ -49,7 +49,7 @@ class CommandRunnerService extends Service
      */
     public function serve(LoopInterface $loop)
     {
-        $this->instruction->getPromisse()->done(
+        $this->instruction->getPromise()->done(
             function ($response) {
                 // Output success message and exit.
                 if ('string' == $response->getDataType()) {

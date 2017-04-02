@@ -50,7 +50,7 @@ final class Message
     public $recipient;
 
     /**
-     * Defered that may be used to resolve an promisse if the message expects
+     * Defered that may be used to resolve an promise if the message expects
      * an response.
      * @var Deferred
      */
@@ -140,7 +140,7 @@ final class Message
      *
      * @return \React\Promise\Promise Promise that will be resolved when the response arrives or if the timeout is reached.
      */
-    public function getPromisse(): Promise
+    public function getPromise(): Promise
     {
         if (! $this->deferred) {
             $this->deferred = new Deferred();
@@ -161,7 +161,7 @@ final class Message
 
     /**
      * Tells if this command expects an response. Which will be true if the
-     * getPromisse was called before.
+     * getPromise was called before.
      *
      * @return boolean
      */

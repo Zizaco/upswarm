@@ -99,7 +99,7 @@ class MessageSender
         // On the next tick of the loop
         $this->service->getLoop()->nextTick(function () use ($message) {
 
-            // Register callback to fullfill promisse if Message has deferred.
+            // Register callback to fullfill promise if Message has deferred.
             if ($message->expectsResponse()) {
                 if ($this->prepareForResponse($message)) {
                     $this->service->getLoop()->addTimer(5, function () use ($message) {
@@ -134,13 +134,13 @@ class MessageSender
      */
     private function registerDeferredCallback(Message $message, string $messageSignature)
     {
-        // Add a timeout to reject the promisse of the message.
+        // Add a timeout to reject the promise of the message.
         $timeout = $this->service->getLoop()->addTimer(10, function () use ($message) {
             $message->getDeferred()->reject(new \Exception("Timeout. Service '{$message->recipient}' did not responded within 10 seconds."));
             $this->eventEmitter->removeAllListeners($message->id);
         });
 
-        // Registers callback to resolve promisse if a response message is received.
+        // Registers callback to resolve promise if a response message is received.
         $this->eventEmitter->on($message->id, function ($value) use ($message, $timeout, $messageSignature) {
             $timeout->cancel();
             $this->eventEmitter->removeAllListeners($message->id);
