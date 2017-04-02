@@ -183,7 +183,7 @@ abstract class Service
         });
 
         // Executes serve
-        $this->loop->addTimer(1, function () {
+        $this->loop->addTimer(0.1, function () {
             $this->serve($this->loop);
         });
     }
