@@ -1,0 +1,17 @@
+site_name: "Upswarm"
+site_url: http://zizaco.github.io/upswarm
+repo_url: https://github.com/zizaco/upswarm
+site_dir: .site
+
+theme: readthedocs
+
+pages:
+    - 'Home': 'index.md'
+    - 'Additional information': 'info.md'
+
+markdown_extensions:
+    - def_list
+    - fenced_code
+    - smarty
+    - toc:
+        permalink: true
