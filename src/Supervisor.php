@@ -101,9 +101,10 @@ class Supervisor
     /**
      * Initializes the Supervisor
      *
-     * @param integer $port Port to listen to.
+     * @param integer $port         Port to listen to.
+     * @param string  $topologyFile Topology file that will be read.
      */
-    public function __construct(int $port = 8300)
+    public function __construct(int $port = 8300, string $topologyFile = 'topology.json')
     {
         $this->loop         = Factory::create();
         $zmqContext         = new Context($this->loop);
@@ -112,18 +113,23 @@ class Supervisor
         $this->port         = $port;
 
         $this->prepareMessageHandling($this->inputStream);
-        $this->prepareTopology();
+
+        if ($topologyFile) {
+            $this->prepareTopology($topologyFile);
+        }
     }
 
     /**
      * Listen to a TopologyReader update events in order to be able to tell
      * how is the topology in real time.
      *
+     * @param string $topologyFile Topology file that will be read.
+     *
      * @return void
      */
-    protected function prepareTopology()
+    protected function prepareTopology(string $topologyFile)
     {
-        $this->topologyReader = new TopologyReader($this->loop);
+        $this->topologyReader = new TopologyReader($this->loop, $topologyFile);
 
         $this->topologyReader->on('info', function ($message) {
             echo "$message\n";

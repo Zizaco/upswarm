@@ -28,6 +28,13 @@ class ServeCommand extends Command
                 "services and handle message exchanging between then."
             )
             ->addOption(
+                'topology',
+                't',
+                InputOption::VALUE_REQUIRED,
+                'Topology file. Use "0" for null',
+                'topology.json'
+            )
+            ->addOption(
                 'port',
                 'p',
                 InputOption::VALUE_REQUIRED,
@@ -57,16 +64,13 @@ class ServeCommand extends Command
         $output->writeln("<info>Running Upwsarm supervisor</info>");
 
         if ($input->getOption('daemon')) {
-            if ($this->isWindows()) {
-                exec('start /min php upswarm serve');
-            } else {
-                exec('nohup upswarm serve >/dev/null 2>&1 &');
-            }
+            $pid = exec('php upswarm serve > /dev/null 2>&1 & echo $!');
+            $output->writeln("PID: $pid");
 
             return;
         }
 
-        (new Supervisor($input->getOption('port')))->run();
+        (new Supervisor($input->getOption('port'), $input->getOption('topology')))->run();
     }
 
     /**

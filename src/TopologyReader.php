@@ -14,14 +14,15 @@ class TopologyReader extends EventEmitter implements EventEmitterInterface
 {
     /**
      * Constructor
-     * @param LoopInterface $loop Main EventLoop.
+     * @param LoopInterface $loop     Main EventLoop.
+     * @param string        $filename Topology file that will be read.
      */
-    public function __construct(LoopInterface $loop)
+    public function __construct(LoopInterface $loop, string $filename = 'topology.json')
     {
         $this->loop = $loop;
         $this->filesystem = Filesystem::create($loop);
-        $topologyFilename = getcwd()."/topology.json";
-        $this->file = $this->filesystem->file($topologyFilename);
+        $this->filename = $filename;
+        $this->file = $this->filesystem->file($filename);
         $this->fileLastModification = null;
 
         $this->registerEvents();
@@ -60,9 +61,11 @@ class TopologyReader extends EventEmitter implements EventEmitterInterface
                         $this->updateTopology();
                     }
                 });
+            }, function () {
+                $this->emit('error', ["Unable to read '{$this->filename}'. Make sure the file is readable."]);
             });
         } catch (\Exception $e) {
-            $this->emit('error', ["Unable to read 'topology.json'. Make sure the file is readable."]);
+            $this->emit('error', ["Unable to read '{$this->filename}'. Make sure the file is readable."]);
         }
     }
 
@@ -73,7 +76,7 @@ class TopologyReader extends EventEmitter implements EventEmitterInterface
      */
     public function updateTopology()
     {
-        $this->emit('info', ["Reading 'topology.json'."]);
+        $this->emit('info', ["Reading '{$this->filename}'."]);
 
         $this->file->getContents()->then(function ($contents) {
             $services = json_decode($contents, true);
