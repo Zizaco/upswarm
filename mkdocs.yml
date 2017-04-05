@@ -7,11 +7,14 @@ theme: readthedocs
 
 pages:
     - 'Home': 'index.md'
+    - 'Basics': 'basics.md'
+    - 'Core Concepts': 'core_concepts.md'
     - 'Additional information': 'info.md'
 
 markdown_extensions:
     - def_list
     - fenced_code
     - smarty
+    - admonition
     - toc:
         permalink: true
