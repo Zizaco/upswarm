@@ -177,8 +177,7 @@ abstract class Service
 
         // Stops loop (and exit service) if connection ends
         $stream->on('error', function ($e) {
-            var_dump($e);
-            echo $e->getMessage();
+            echo (string) $e;
             $this->exit($e->getCode() ?: 3);
         });
 
