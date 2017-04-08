@@ -4,11 +4,35 @@ repo_url: https://github.com/zizaco/upswarm
 site_dir: .site
 
 theme: readthedocs
+extra_css: [docs.css]
 
 pages:
     - 'Home': 'index.md'
-    - 'Basics': 'basics.md'
-    - 'Core Concepts': 'core_concepts.md'
+    - 'Getting Started':
+        - 'Basics': 'basics.md'
+        - 'Core Concepts': 'core_concepts.md'
+        - 'Dev Environment': 'dev_environment.md'
+        - 'Step-by-step Guide': 'step_by_step.md'
+    - 'HTTP Basics':
+        - 'HTTP Server': 'http_basics.md'
+        - 'Routing': 'http_basics.md'
+        - 'Controllers': 'http_basics.md'
+        - 'Middleware': 'http_basics.md'
+        - 'Requests': 'http_basics.md'
+        - 'Responses': 'http_basics.md'
+    - 'Features':
+        - 'Authentication': 'features.md'
+        - 'Authorization': 'features.md'
+        - 'Cache': 'features.md'
+        - 'Database': 'features.md'
+        - 'Errors & Logging': 'features.md'
+        - 'Queues': 'features.md'
+        - 'Service Container': 'features.md'
+        - 'Service Providers': 'features.md'
+        - 'Validation': 'features.md'
+    - 'Advanced':
+        - 'Testing': 'testing.md'
+        - 'Multiple nodes': 'features.md'
     - 'Additional information': 'info.md'
 
 markdown_extensions:

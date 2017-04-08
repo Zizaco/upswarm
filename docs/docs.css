@@ -1,0 +1,64 @@
+/**
+ * Anchors
+ */
+.wy-menu-vertical span {
+    color: #7f92c6;
+    font-weight: bold;
+}
+
+a {
+    color: #9B59B6;
+}
+
+a:hover {
+    color: #d35fe2;
+}
+
+.wy-menu-vertical a:hover {
+    color: #b3b3b3;
+}
+
+.wy-menu-vertical a:active {
+    background-color: #8f48a5;
+}
+
+
+/**
+ * Admonition info box
+ */
+.rst-content .note .admonition-title {
+    background-color: #cd6ade;
+}
+
+.rst-content .note {
+    background-color: #f3e7fa;
+}
+
+/**
+ * Code highlight tweak
+ */
+.hljs-attribute, .hljs-variable, .lisp .hljs-body, .hljs-name {
+    color: #a15fb8;
+}
+
+/**
+ * Logo
+ */
+.wy-side-nav-search, .wy-nav-top {
+    background-color: #8f48a5;
+}
+
+.fa-home:before, .icon-home:before {
+    content: "";
+    background-image: url(https://raw.githubusercontent.com/Zizaco/upswarm/master/resources/logo.png);
+    background-position-x: -10px;
+    display: block;
+    width: 200px;
+    height: 260px;
+    filter: grayscale(100%) brightness(10);
+}
+
+a.icon.icon-home {
+    text-indent: -9999px;
+    font-size: 0px;
+}
