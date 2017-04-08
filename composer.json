@@ -1,6 +1,13 @@
 {
     "name": "zizaco/upswarm",
     "description": "Multi-processed, async, fault-tolerant micro-framework for writing distributed service-oriented applications.",
+    "keywords": [
+        "framework",
+        "upswarm",
+        "async",
+        "react",
+        "distributed"
+    ],
     "type": "library",
     "license": "MIT",
     "authors": [
