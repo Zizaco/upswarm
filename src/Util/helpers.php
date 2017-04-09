@@ -29,8 +29,8 @@ if (! function_exists('waitfor')) {
                 send_message($value);
             }
 
-            if ($promise[$key] instanceof \React\Promise\Promise) {
-                throw new \Upswarm\Exceptions\ServiceException("'waitfor' parameters must be 'Upswarm\Message' or 'React\Promise\Promise' instances", 107);
+            if (!$promise[$key] instanceof \React\Promise\Promise) {
+                throw new \Upswarm\Exceptions\ServiceException("'waitfor' parameters must be 'Upswarm\Message' or 'React\Promise\Promise' instances. Instance of ".get_class($promise[$key])." given", 107);
             }
         }
 
