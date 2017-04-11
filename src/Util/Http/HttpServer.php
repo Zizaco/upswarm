@@ -3,8 +3,12 @@
 namespace Upswarm\Util\Http;
 
 use FastRoute\Dispatcher;
+use Psr\Http\Message\RequestInterface;
 use React\EventLoop\LoopInterface;
+use React\Promise\Promise;
 use React\Promise\RejectedPromise;
+use RingCentral\Psr7\BufferStream;
+use RingCentral\Psr7\Response;
 use Upswarm\Message;
 use Upswarm\Service;
 use Upswarm\Util\Http\HttpResponse;
@@ -70,8 +74,6 @@ class HttpServer
     {
         $this->dispatcher = \FastRoute\simpleDispatcher($registerRoutes);
 
-        $this->registerRequestHandlers();
-
         return $this;
     }
 
@@ -110,104 +112,79 @@ class HttpServer
             throw new RouteDispatcherMissingException;
         }
 
-        $this->getReactSocket()->listen($port, $host);
-    }
 
-    /**
-     * Returns the "raw" ReactPHP Http server.
-     *
-     * @return \React\Http\Server
-     */
-    public function getReactHttpServer()
-    {
-        if (! $this->reactHttpServer) {
-            $this->reactHttpServer = new \React\Http\Server($this->getReactSocket());
-        }
+        $this->reactSocket = new \React\Socket\Server("$host:$port", $this->loop);
+        $this->reactHttpServer = new \React\Http\Server($this->reactSocket, function (RequestInterface $request) {
+            return new Promise(function ($resolve, $reject) use ($request) {
+                $contentLength = 0;
+                $request->getBody()->on('data', function ($data) use (&$contentLength) {
+                    $contentLength += strlen($data);
+                });
 
-        return $this->reactHttpServer;
-    }
+                $request->getBody()->on('end', function () use ($request, $resolve, &$contentLength) {
+                    try {
+                        $message = $this->dispatch($request);
+                        if ('self' == $message->recipient) {
+                            return $this->localAction($message->getData(), $request, $reactResponse);
+                        }
+                        $this->service->sendMessage($message);
+                        $promise = $message->getPromise();
+                    } catch (\Exception $e) {
+                        if ($this->errorHandler) {
+                            $promise = $this->service->sendMessage($e, $this->errorHandler)->getPromise();
+                        } else {
+                            $promise = new RejectedPromise($e->getMessage());
+                        }
+                    }
 
-    /**
-     * Returns the "raw" ReactPHP Socket.
-     *
-     * @return \React\Socket\Server
-     */
-    public function getReactSocket()
-    {
-        if (! $this->reactSocket) {
-            $this->reactSocket = new \React\Socket\Server($this->loop);
-        }
-
-        return $this->reactSocket;
-    }
-
-    /**
-     * Register event listeners in React HTTP server in order to use the
-     * dispatcher to handle the requests.
-     *
-     * @return void
-     */
-    protected function registerRequestHandlers()
-    {
-        $server = $this->getReactHttpServer();
-
-        $server->on('request', function ($request, $reactResponse) {
-            try {
-                $message = $this->dispatch($request);
-                if ('self' == $message->recipient) {
-                    return $this->localAction($message->getData(), $request, $reactResponse);
-                }
-                $this->service->sendMessage($message);
-                $promise = $message->getPromise();
-            } catch (\Exception $e) {
-                if ($this->errorHandler) {
-                    $promise = $this->service->sendMessage($e, $this->errorHandler)->getPromise();
-                } else {
-                    $promise = new RejectedPromise($e->getMessage());
-                }
-            }
-
-            $promise->then(
-                function ($message) use ($reactResponse, $request) {
-                    $httpResponse = $message->getData();
-                    $reactResponse->writeHead($httpResponse->code, $httpResponse->headers);
-                    $request->close();
-                    $reactResponse->end($httpResponse->data);
-                    unset($httpResponse);
-                },
-                function ($errorString) use ($reactResponse, $request) {
-                    $reactResponse->writeHead(500);
-                    $reactResponse->end($errorString ?: "Internal server error.");
-                    $request->close();
-                    unset($httpResponse);
-                }
-            );
+                    $promise->then(
+                        function ($message) use ($resolve) {
+                            $httpResponse = $message->getData();
+                            $response = new Response(
+                                $httpResponse->code,
+                                $httpResponse->headers,
+                                $httpResponse->data
+                            );
+                            $resolve($response);
+                        },
+                        function ($errorString) use ($resolve) {
+                            $response = new Response(
+                                501,
+                                [],
+                                $errorString ?: "Internal server error."
+                            );
+                            $resolve($response);
+                        }
+                    );
+                });
+            });
         });
     }
 
     /**
      * Dispatchs the given $request
      *
-     * @param  \React\Http\Request $request Request to be dispatched.
+     * @param  RequestInterface $request Request to be dispatched.
      *
      * @throws RouteDispatcher404Exception If uri didn't match any route.
      * @throws RouteDispatcher405Exception If matched uri don't allow the method.
      *
      * @return return Message
      */
-    protected function dispatch(\React\Http\Request $request)
+    protected function dispatch(RequestInterface $request)
     {
-        $uri       = $request->getHeaders()['Host'].$request->getPath();
-        $routeInfo = $this->dispatcher->dispatch($request->getMethod(), $request->getPath());
+        $uri       = $request->getUri()->getPath();
+        $method    = $request->getMethod();
+        $routeInfo = $this->dispatcher->dispatch($method, $uri);
 
         switch ($routeInfo[0]) {
             case Dispatcher::NOT_FOUND:
-                throw new RouteDispatcher404Exception($request->getMethod(), $request->getPath());
+                throw new RouteDispatcher404Exception($method, $uri);
 
                 break;
             case Dispatcher::METHOD_NOT_ALLOWED:
                 $allowedMethods = $routeInfo[1];
-                throw new RouteDispatcher405Exception($request->getMethod(), $request->getPath());
+                throw new RouteDispatcher405Exception($method, $uri);
 
                 break;
             case Dispatcher::FOUND:
@@ -217,6 +194,10 @@ class HttpServer
                 if (strstr($handler, '@')) {
                     list($handler, $action) = explode('@', $handler);
                 }
+
+                $body = new BufferStream();
+                $body->write((string) $request->getBody());
+                $request = $request->withBody($body);
 
                 return new Message(new HttpRequest($request, $action ?? null, $vars), $handler);
         }

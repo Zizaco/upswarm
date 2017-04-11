@@ -2,7 +2,7 @@
 
 namespace Upswarm\Util\Http;
 
-use React\Http\Request;
+use Psr\Http\Message\RequestInterface;
 
 /**
  * Wraps an dispatched Http Request
@@ -11,7 +11,7 @@ class HttpRequest
 {
     /**
      * ReactPHP Http Request object.
-     * @var Request
+     * @var RequestInterface
      */
     public $request;
 
@@ -30,11 +30,11 @@ class HttpRequest
     /**
      * Constructs an instance with properties
      *
-     * @param Request $request ReactPHP Http Request object.
-     * @param string  $action  Request action.
-     * @param array   $params  Parameters of the path of the request.
+     * @param RequestInterface $request ReactPHP Http Request object.
+     * @param string           $action  Request action.
+     * @param array            $params  Parameters of the path of the request.
      */
-    public function __construct(Request $request, string $action, array $params)
+    public function __construct(RequestInterface $request, string $action, array $params)
     {
         $this->request = $request;
         $this->action  = $action;
