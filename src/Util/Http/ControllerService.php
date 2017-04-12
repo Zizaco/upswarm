@@ -13,7 +13,7 @@ use Upswarm\Util\Http\HttpRequest;
 /**
  * Upswarm base controller service.
  */
-class ControllerService extends Service
+abstract class ControllerService extends Service
 {
     /**
      * Handles incoming messages by calling a corresponding action.

@@ -15,11 +15,11 @@ pages:
         - 'Step-by-step Guide': 'step_by_step.md'
     - 'HTTP Basics':
         - 'HTTP Server': 'http_basics.md'
-        - 'Routing': 'http_basics.md'
-        - 'Controllers': 'http_basics.md'
-        - 'Middleware': 'http_basics.md'
-        - 'Requests': 'http_basics.md'
-        - 'Responses': 'http_basics.md'
+        - 'Routing': 'features.md'
+        - 'Controllers': 'features.md'
+        - 'Middleware': 'features.md'
+        - 'Requests': 'features.md'
+        - 'Responses': 'features.md'
     - 'Features':
         - 'Authentication': 'features.md'
         - 'Authorization': 'features.md'
