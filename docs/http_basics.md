@@ -1,6 +1,6 @@
 ## Http Server
 
-Upswarm provides a HTTP server implementation using (https://github.com/reactphp/http)[ReactPHP HTTP package].
+Upswarm provides a HTTP server implementation using [ReactPHP HTTP package](https://github.com/reactphp/http).
 
 `Upswarm\Util\Http\HttpServer` is an abstraction that will handle requests and dispatch messages containing `Upswarm\Util\Http\HttpRequest` to specified _Services_.
 
