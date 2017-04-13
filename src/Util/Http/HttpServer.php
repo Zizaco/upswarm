@@ -106,7 +106,7 @@ class HttpServer
      *
      * @return void
      */
-    public function listen(int $port, string $host = '127.0.0.1')
+    public function listen(int $port, string $host = '0.0.0.0')
     {
         if (! $this->dispatcher) {
             throw new RouteDispatcherMissingException;
