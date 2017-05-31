@@ -23,7 +23,7 @@ composer create-project --prefer-dist zizaco/upswarm-project <project-name>
 If you have PHP installed locally, to run an Upswarm application you may use the `serve` Upswarm command. This command will start a the _Supervisor_ and the _Services_ in `topology.json`:
 
 ```bash
-php artisan serve
+php upswarm serve
 ```
 
 Of course, you can also run an Upswarm application using Docker:
